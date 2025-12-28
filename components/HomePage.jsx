@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { auth, db } from "../lib/firebase";
+import { auth, db } from "../lib/firebaseClient"; // ✅ المسار الصحيح
 
 // Firebase (modular v9)
 import {
