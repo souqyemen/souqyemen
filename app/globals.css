@@ -1,79 +1,73 @@
-/* app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* خط افتراضي */
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 248, 250, 252;
+  --background-end-rgb: 255, 255, 255;
+}
+
 body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+  font-family: 'Cairo', sans-serif;
+  background-color: #f8fafc;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.3s, color 0.3s;
 }
 
-/* حاوية أساسية للعرض في المنتصف */
-.container-main {
-  @apply max-w-5xl mx-auto px-3 sm:px-4;
+/* Dark Mode Styles */
+body.dark-mode {
+    background-color: #0f172a;
+    color: #e2e8f0;
 }
 
-/* إخفاء سكرول الهورزنتال للقوائم */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+/* scrollbar hidden */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Header Gradient */
+.header-compact { 
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); 
+    border-bottom-left-radius: 20px; 
+    border-bottom-right-radius: 20px; 
+    padding-top: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
 }
 
-/* عنوان قسم */
-.section-title {
-  @apply font-semibold text-slate-800;
+.dark-mode .header-compact {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-bottom: 1px solid #334155;
 }
 
-/* حبوب المميزات تحت البحث */
-.feature-pill {
-  @apply inline-flex items-center gap-1 bg-white/10 rounded-full px-2.5 py-1;
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
-.feature-pill .dot {
-  @apply w-1.5 h-1.5 rounded-full bg-emerald-400;
+.fade-in { animation: fadeIn 0.3s ease-out; }
+
+/* Map & Leaflet fixes for Next.js */
+.leaflet-container {
+    width: 100%;
+    height: 100%;
+    z-index: 1;
 }
 
-/* أزرار الأقسام */
-.category-pill {
-  @apply inline-flex items-center justify-center whitespace-nowrap
-  rounded-full px-3.5 py-1.5 text-[11px] sm:text-xs
-  border border-slate-200 bg-slate-50 text-slate-600
-  hover:bg-slate-100 hover:border-slate-300 transition;
+/* باقي التنسيقات الضرورية */
+.touch-feedback:active { opacity: 0.7; }
+.category-scroll-container { 
+    display: flex; gap: 10px; overflow-x: auto; padding: 10px 16px; 
+    scroll-behavior: smooth; background-color: white;
 }
-.category-pill--active {
-  @apply bg-[#0251c9] text-white border-[#0251c9];
-}
+.dark-mode .category-scroll-container { background-color: #1e293b; border-bottom: 1px solid #334155; }
 
-/* شبكة الإعلانات */
-.ads-grid {
-  @apply grid gap-4 sm:grid-cols-2 lg:grid-cols-3;
+.modal-overlay { 
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); 
+    backdrop-filter: blur(4px); z-index: 1100; 
+    display: flex; align-items: center; justify-content: center; padding: 20px; 
 }
-
-/* كرت الإعلان */
-.ad-card {
-  @apply bg-white rounded-2xl shadow-sm hover:shadow-md transition overflow-hidden;
-}
-
-.ad-title {
-  @apply text-sm sm:text-base font-semibold text-slate-800 leading-snug;
-}
-
-/* شارات على الصورة */
-.badge-icon {
-  @apply inline-flex items-center justify-center w-7 h-7 rounded-full
-  bg-black/50 text-white text-xs;
-}
-
-/* أزرار أسفل الكرت */
-.btn-secondary {
-  @apply inline-flex items-center justify-center rounded-xl border border-slate-200
-  bg-white text-xs font-semibold text-slate-700 py-2 hover:bg-slate-50 transition;
-}
-
-.btn-whatsapp {
-  @apply inline-flex items-center justify-center rounded-xl border border-emerald-500
-  bg-emerald-500 text-xs font-semibold text-white py-2 hover:bg-emerald-600 transition;
+.modal-content { 
+    background: white; width: 100%; max-width: 500px; 
+    border-radius: 20px; padding: 20px; max-height: 90vh; overflow-y: auto; 
 }
