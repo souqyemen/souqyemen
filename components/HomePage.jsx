@@ -3,16 +3,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { firebase, auth, db, storage, googleProvider } from '../lib/firebase';
 
-// --- الثوابت والإعدادات ---
+// --- ثوابت وإعدادات ---
 const RATES = { USD_TO_YER: 1600, SAR_TO_YER: 420 };
 const YEMEN_CENTER = [15.5527, 48.5164]; 
 const DEFAULT_ZOOM = 6;
-const ADMIN_EMAIL = "mansouralbarout@gmail.com"; // ضع إيميلك هنا لتكون أدمن
+// يمكنك تغيير الايميل هنا لاحقاً لجعله أدمن
+const ADMIN_EMAIL = "mansouralbarout@gmail.com"; 
 
-// --- دوال مساعدة ---
+// --- Helper Functions ---
 const formatNumber = (num) => Math.round(num).toLocaleString('en-US');
 
-// --- الأيقونات ---
+// --- Icons Component ---
 const Icons = {
     Map: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>,
     MapPin: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
@@ -43,7 +44,7 @@ const Icons = {
     StarFilled: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
 };
 
-// --- البيانات الثابتة ---
+// --- DATA CONSTANTS ---
 const CATEGORIES = [
     { id: 'all', name: 'الكل', icon: Icons.Grid, color: '#64748b' },
     { id: 'cars', name: 'سيارات', icon: Icons.Car, color: '#3b82f6' },
@@ -53,7 +54,7 @@ const CATEGORIES = [
 ];
 const CITIES = ["صنعاء", "عدن", "تعز", "الحديدة", "إب", "المكلا", "حضرموت", "ذمار", "مأرب", "عمران"];
 
-// --- المكونات الفرعية ---
+// --- COMPONENTS ---
 
 const Logo = () => (
     <div className="flex items-center gap-2">
@@ -69,7 +70,7 @@ const Logo = () => (
     </div>
 );
 
-// مكون اختيار الموقع (الخريطة)
+// --- مكون اختيار الموقع (LocationPicker) ---
 const LocationPicker = ({ onLocationSelect }) => {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
@@ -108,7 +109,7 @@ const LocationPicker = ({ onLocationSelect }) => {
     return <div ref={mapRef} className="w-full h-64 rounded-xl border border-gray-300 z-0 dark:border-gray-600" />;
 };
 
-// مكون رفع الصور المتعددة
+// --- مكون رفع الصور المتعددة (MultiImageUploader) ---
 const MultiImageUploader = ({ maxFiles = 5, onImagesUpload }) => {
     const [items, setItems] = useState([]);
     const [busy, setBusy] = useState(false);
@@ -160,7 +161,7 @@ const MultiImageUploader = ({ maxFiles = 5, onImagesUpload }) => {
     );
 };
 
-// مكون عرض الخريطة الرئيسية
+// --- Main Map Component ---
 const MainMap = ({ items }) => {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
@@ -197,7 +198,7 @@ const MainMap = ({ items }) => {
     return <div ref={mapRef} className="w-full h-full min-h-[500px]" />;
 };
 
-// نافذة تسجيل الدخول
+// --- AUTH MODAL ---
 const AuthModal = ({ isOpen, onClose, onLogin }) => {
     const [isLogin, setIsLogin] = useState(true);
     const [email, setEmail] = useState('');
@@ -253,7 +254,8 @@ const AuthModal = ({ isOpen, onClose, onLogin }) => {
     );
 };
 
-// البطاقة الذكية (Smart Listing Card) - المزاد + العملات
+// --- LISTING CARD (SMART VERSION) ---
+// هذا هو الجزء الذي يضمن عمل المزاد والعملات
 const ListingCard = ({ item }) => {
     const [timeLeft, setTimeLeft] = useState('');
     
@@ -356,12 +358,12 @@ const ListingCard = ({ item }) => {
     );
 };
 
-// نافذة إضافة إعلان
+// --- نافذة إضافة إعلان ---
 const AddListingModal = ({ isOpen, onClose, user, onAdd }) => {
     const [formData, setFormData] = useState({
         title: '', price: '', currency: 'YER', city: '', category: 'cars', 
         phone: '', description: '', images: [], coords: null, isAuction: false,
-        auctionEnd: ''
+        auctionEnd: '' // Added missing field
     });
     const [loading, setLoading] = useState(false);
 
@@ -443,7 +445,7 @@ const AddListingModal = ({ isOpen, onClose, user, onAdd }) => {
     );
 };
 
-// نظام الدردشة
+// --- نظام الدردشة المبسط ---
 const ChatSystem = ({ currentUser, listing, onClose }) => {
     const [messages, setMessages] = useState([]);
     const [txt, setTxt] = useState('');
@@ -489,7 +491,7 @@ const ChatSystem = ({ currentUser, listing, onClose }) => {
     );
 };
 
-// نافذة التفاصيل
+// --- نافذة التفاصيل ---
 const ListingDetailsModal = ({ item, isOpen, onClose, user, onChat }) => {
     if (!isOpen || !item) return null;
     const img = item.images && item.images.length ? item.images[0] : item.image;
@@ -525,7 +527,7 @@ const ListingDetailsModal = ({ item, isOpen, onClose, user, onChat }) => {
     );
 };
 
-// --- المكون الرئيسي (HomePage) ---
+// --- MAIN PAGE COMPONENT ---
 export default function HomePage() {
     const [user, setUser] = useState(null);
     const [listings, setListings] = useState([]);
@@ -575,7 +577,7 @@ export default function HomePage() {
 
     return (
         <div className="min-h-screen pb-20">
-            {/* الهيدر */}
+            {/* Header */}
             <header className="header-compact text-white shadow-lg">
                 <div className="container mx-auto px-4 pb-4">
                     <div className="flex justify-between items-center mb-4">
@@ -598,7 +600,7 @@ export default function HomePage() {
                 </div>
             </header>
 
-            {/* الأقسام */}
+            {/* Categories */}
             {view === 'home' && (
                 <div className="category-scroll-container sticky top-[100px] z-10">
                     {CATEGORIES.map(c => (
@@ -612,7 +614,7 @@ export default function HomePage() {
                 </div>
             )}
 
-            {/* المحتوى الرئيسي */}
+            {/* Main Content */}
             <main className="container mx-auto px-4 py-4">
                 {view === 'map' ? (
                      <div className="h-[70vh] rounded-xl overflow-hidden border dark:border-gray-700 relative">
@@ -630,7 +632,7 @@ export default function HomePage() {
                 )}
             </main>
             
-            {/* زر عائم للتبديل بين القائمة والخريطة */}
+            {/* Floating Action Button */}
             <button 
                 onClick={()=>setView(view === 'map' ? 'home' : 'map')}
                 className="fixed bottom-6 left-6 bg-blue-600 text-white p-4 rounded-full shadow-lg z-50 flex items-center gap-2"
@@ -638,7 +640,7 @@ export default function HomePage() {
                 {view === 'map' ? <><Icons.Grid/> قائمة</> : <><Icons.Map/> خريطة</>}
             </button>
 
-            {/* النوافذ المنبثقة */}
+            {/* Modals */}
             <AuthModal isOpen={modals.auth} onClose={()=>setModals({...modals, auth:false})} onLogin={()=>setModals({...modals, auth:false})} />
             
             <AddListingModal 
