@@ -7,7 +7,8 @@ import { firebase, auth, db, storage, googleProvider } from '../lib/firebase';
 const RATES = { USD_TO_YER: 1600, SAR_TO_YER: 420 };
 const YEMEN_CENTER = [15.5527, 48.5164]; 
 const DEFAULT_ZOOM = 6;
-const ADMIN_EMAIL = "mansouralbarout@gmail.com";
+// يمكنك تغيير الايميل هنا لاحقاً لجعله أدمن
+const ADMIN_EMAIL = "mansouralbarout@gmail.com"; 
 
 // --- Helper Functions ---
 const formatNumber = (num) => Math.round(num).toLocaleString('en-US');
