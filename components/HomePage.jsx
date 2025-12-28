@@ -73,6 +73,102 @@ const Logo = () => (
     </div>
 );
 
+// --- مكون اختيار الموقع (LocationPicker) ---
+const LocationPicker = ({ onLocationSelect }) => {
+    const mapRef = useRef(null);
+    const mapInstance = useRef(null);
+    const markerRef = useRef(null);
+
+    useEffect(() => {
+        // التأكد من العمل داخل المتصفح فقط
+        if (typeof window === 'undefined' || !window.L || !mapRef.current) return;
+
+        if (!mapInstance.current) {
+            mapInstance.current = window.L.map(mapRef.current).setView(YEMEN_CENTER, DEFAULT_ZOOM);
+            window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; سوق اليمن'
+            }).addTo(mapInstance.current);
+
+            mapInstance.current.on('click', async (e) => {
+                const { lat, lng } = e.latlng;
+                
+                if (markerRef.current) {
+                    markerRef.current.setLatLng([lat, lng]);
+                } else {
+                    markerRef.current = window.L.marker([lat, lng], { draggable: true }).addTo(mapInstance.current);
+                }
+
+                // محاكاة جلب العنوان (Reverse Geocoding بسيط)
+                const osmUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=18/${lat}/${lng}`;
+                onLocationSelect({
+                    coords: [lat, lng],
+                    locationUrl: osmUrl,
+                    city: "موقع محدد" // يمكن تحسينه باستخدام API خارجي
+                });
+            });
+        }
+        
+        // إصلاح حجم الخريطة
+        setTimeout(() => mapInstance.current && mapInstance.current.invalidateSize(), 500);
+    }, []);
+
+    return <div ref={mapRef} className="w-full h-64 rounded-xl border border-gray-300 z-0 dark:border-gray-600" />;
+};
+
+// --- مكون رفع الصور المتعددة (MultiImageUploader) ---
+const MultiImageUploader = ({ maxFiles = 5, onImagesUpload }) => {
+    const [items, setItems] = useState([]);
+    const [busy, setBusy] = useState(false);
+
+    const handleSelect = async (e) => {
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
+
+        setBusy(true);
+        // هنا نقوم بمحاكاة الرفع لغرض العرض السريع، في الواقع يجب الربط مع Firebase Storage كما في الكود الأصلي
+        // سأضع كود الرفع الحقيقي المختصر:
+        const newItems = [];
+        
+        for (const file of files) {
+            try {
+                const storageRef = storage.ref();
+                const fileName = `listing_${Date.now()}_${file.name}`;
+                const imgRef = storageRef.child(`listings/${fileName}`);
+                await imgRef.put(file);
+                const url = await imgRef.getDownloadURL();
+                newItems.push({ url, preview: url });
+            } catch (err) {
+                console.error("Upload failed", err);
+                alert("فشل رفع الصورة: " + err.message);
+            }
+        }
+
+        setItems(prev => {
+            const updated = [...prev, ...newItems].slice(0, maxFiles);
+            onImagesUpload(updated.map(i => i.url));
+            return updated;
+        });
+        setBusy(false);
+    };
+
+    return (
+        <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center dark:border-gray-600">
+            <div className="grid grid-cols-3 gap-2 mb-4">
+                {items.map((it, idx) => (
+                    <img key={idx} src={it.url} className="w-full h-20 object-cover rounded" />
+                ))}
+            </div>
+            <input type="file" accept="image/*" multiple onChange={handleSelect} className="hidden" id="imagesUpload" />
+            <label htmlFor="imagesUpload" className="cursor-pointer block">
+                <div className="flex flex-col items-center gap-2">
+                    <Icons.Camera className="text-3xl text-gray-400" />
+                    <span className="text-sm font-bold">{busy ? 'جاري الرفع...' : 'اضغط لرفع الصور'}</span>
+                </div>
+            </label>
+        </div>
+    );
+};
+
 // Map Component (uses window.L from layout)
 const MainMap = ({ items }) => {
     const mapRef = useRef(null);
@@ -181,12 +277,175 @@ const ListingCard = ({ item }) => (
     </div>
 );
 
+// --- نافذة إضافة إعلان ---
+const AddListingModal = ({ isOpen, onClose, user, onAdd }) => {
+    const [formData, setFormData] = useState({
+        title: '', price: '', currency: 'YER', city: '', category: 'cars', 
+        phone: '', description: '', images: [], coords: null, isAuction: false
+    });
+    const [loading, setLoading] = useState(false);
+
+    if (!isOpen) return null;
+
+    const handleSubmit = async () => {
+        if (!formData.title || !formData.price || !formData.phone) {
+            alert('الرجاء تعبئة البيانات الأساسية');
+            return;
+        }
+        setLoading(true);
+        try {
+            await onAdd(formData);
+            onClose();
+        } catch (e) {
+            alert(e.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content dark:bg-gray-800 dark:text-gray-200" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold">إضافة إعلان</h2>
+                    <button onClick={onClose}><Icons.X /></button>
+                </div>
+                
+                <div className="space-y-3 max-h-[70vh] overflow-y-auto p-1">
+                    <input value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} placeholder="العنوان" className="w-full p-3 border rounded dark:bg-gray-700" />
+                    
+                    <div className="flex gap-2">
+                        <input type="number" value={formData.price} onChange={e=>setFormData({...formData, price: e.target.value})} placeholder="السعر" className="flex-1 p-3 border rounded dark:bg-gray-700" />
+                        <select value={formData.currency} onChange={e=>setFormData({...formData, currency: e.target.value})} className="p-3 border rounded dark:bg-gray-700">
+                            <option value="YER">ريال يمني</option>
+                            <option value="SAR">سعودي</option>
+                            <option value="USD">دولار</option>
+                        </select>
+                    </div>
+
+                    <div className="flex gap-2">
+                        <select value={formData.category} onChange={e=>setFormData({...formData, category: e.target.value})} className="flex-1 p-3 border rounded dark:bg-gray-700">
+                            {CATEGORIES.filter(c=>c.id!=='all').map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        <select value={formData.city} onChange={e=>setFormData({...formData, city: e.target.value})} className="flex-1 p-3 border rounded dark:bg-gray-700">
+                            <option value="">المدينة</option>
+                            {CITIES.map(c=><option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
+
+                    <input type="tel" value={formData.phone} onChange={e=>setFormData({...formData, phone: e.target.value})} placeholder="رقم الهاتف" className="w-full p-3 border rounded dark:bg-gray-700" />
+                    
+                    <textarea value={formData.description} onChange={e=>setFormData({...formData, description: e.target.value})} placeholder="الوصف..." className="w-full p-3 border rounded h-24 dark:bg-gray-700"></textarea>
+
+                    <div className="flex items-center gap-2 mb-2">
+                        <input type="checkbox" checked={formData.isAuction} onChange={e=>setFormData({...formData, isAuction: e.target.checked})} />
+                        <label>تفعيل المزاد العلني</label>
+                    </div>
+
+                    <MultiImageUploader onImagesUpload={(urls) => setFormData({...formData, images: urls})} />
+                    
+                    <div className="text-sm font-bold mt-2">حدد الموقع على الخريطة:</div>
+                    <LocationPicker onLocationSelect={(loc) => setFormData({...formData, coords: loc.coords, locationUrl: loc.locationUrl})} />
+                </div>
+
+                <button onClick={handleSubmit} disabled={loading} className="w-full bg-yellow-500 text-black font-bold py-3 rounded mt-4 hover:bg-yellow-400">
+                    {loading ? 'جاري النشر...' : 'نشر الإعلان'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// --- نظام الدردشة المبسط ---
+const ChatSystem = ({ currentUser, listing, onClose }) => {
+    const [messages, setMessages] = useState([]);
+    const [txt, setTxt] = useState('');
+    const chatId = listing ? `chat_${[currentUser.uid, listing.userId].sort().join('_')}_${listing.id}` : null;
+
+    useEffect(() => {
+        if (!chatId) return;
+        const unsub = db.collection('chats').doc(chatId).collection('messages')
+            .orderBy('createdAt', 'asc').onSnapshot(snap => {
+                setMessages(snap.docs.map(d => d.data()));
+            });
+        return () => unsub();
+    }, [chatId]);
+
+    const send = async () => {
+        if (!txt.trim()) return;
+        await db.collection('chats').doc(chatId).collection('messages').add({
+            text: txt, senderId: currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        setTxt('');
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-[1200] flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-md h-[500px] rounded-xl flex flex-col dark:bg-gray-800">
+                <div className="p-4 border-b flex justify-between">
+                    <h3 className="font-bold">{listing.title}</h3>
+                    <button onClick={onClose}><Icons.X/></button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                    {messages.map((m, i) => (
+                        <div key={i} className={`p-2 rounded max-w-[80%] ${m.senderId === currentUser.uid ? 'bg-blue-100 mr-auto' : 'bg-gray-100 ml-auto dark:bg-gray-700'}`}>
+                            {m.text}
+                        </div>
+                    ))}
+                </div>
+                <div className="p-4 border-t flex gap-2">
+                    <input value={txt} onChange={e=>setTxt(e.target.value)} className="flex-1 border rounded p-2 dark:bg-gray-700" placeholder="اكتب رسالة..." />
+                    <button onClick={send} className="bg-blue-600 text-white p-2 rounded"><Icons.Send/></button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- نافذة التفاصيل ---
+const ListingDetailsModal = ({ item, isOpen, onClose, user, onChat }) => {
+    if (!isOpen || !item) return null;
+    const img = item.images && item.images.length ? item.images[0] : item.image;
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content dark:bg-gray-800 dark:text-gray-200" onClick={e => e.stopPropagation()}>
+                <button onClick={onClose} className="absolute top-4 left-4 bg-white/50 p-1 rounded-full"><Icons.X /></button>
+                <img src={img || 'https://via.placeholder.com/400'} className="w-full h-64 object-cover rounded-xl mb-4" />
+                
+                <h2 className="text-2xl font-bold mb-2">{item.title}</h2>
+                <div className="text-xl font-black text-blue-600 mb-4">{formatNumber(item.price)} {item.currency}</div>
+                
+                <div className="flex gap-4 mb-4 text-sm text-gray-500 dark:text-gray-400">
+                    <span><Icons.MapPin className="inline"/> {item.city}</span>
+                    <span><Icons.Eye className="inline"/> {item.views}</span>
+                </div>
+
+                <p className="text-gray-700 dark:text-gray-300 mb-6 whitespace-pre-line">{item.description}</p>
+
+                <div className="flex gap-2">
+                    <a href={`tel:${item.phone}`} className="flex-1 bg-green-600 text-white py-3 rounded-lg text-center font-bold flex items-center justify-center gap-2">
+                        <Icons.Phone /> اتصال
+                    </a>
+                    {user && user.uid !== item.userId && (
+                        <button onClick={() => onChat(item)} className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2">
+                            <Icons.Message /> مراسلة
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- MAIN PAGE COMPONENT ---
 export default function HomePage() {
     const [user, setUser] = useState(null);
     const [listings, setListings] = useState([]);
     const [view, setView] = useState('home');
-    const [modals, setModals] = useState({ auth: false, add: false });
+    const [modals, setModals] = useState({ auth: false, add: false, details: false });
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [chatItem, setChatItem] = useState(null);
     const [activeCat, setActiveCat] = useState('all');
     const [search, setSearch] = useState('');
 
@@ -198,6 +457,25 @@ export default function HomePage() {
         });
         return () => { unsubAuth(); unsubDb(); };
     }, []);
+
+    const handleAdd = async (data) => {
+        await db.collection('listings').add({
+            ...data,
+            userId: user.uid,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            views: 0,
+            image: data.images[0] || '' // الصورة الرئيسية
+        });
+    };
+
+    const openDetails = (item) => {
+        setSelectedItem(item);
+        setModals({...modals, details: true});
+        // زيادة المشاهدات
+        db.collection('listings').doc(item.id).update({
+            views: firebase.firestore.FieldValue.increment(1)
+        });
+    };
 
     const filteredListings = listings.filter(l => 
         (activeCat === 'all' || l.category === activeCat) &&
@@ -217,6 +495,9 @@ export default function HomePage() {
                         <div onClick={()=>setView('home')} className="cursor-pointer"><Logo /></div>
                         <div className="flex gap-2">
                              <button onClick={toggleDarkMode} className="p-2 bg-white/20 rounded-full"><Icons.Sun size={20}/></button>
+                             <button onClick={()=>user ? setModals({...modals, add: true}) : setModals({...modals, auth:true})} className="p-2 bg-yellow-400 text-black rounded-full shadow">
+                                <Icons.Plus size={20}/>
+                             </button>
                              <button onClick={()=>user ? setView('profile') : setModals({...modals, auth:true})} className="p-2 bg-white/20 rounded-full">
                                 {user ? <Icons.User size={20}/> : "دخول"}
                              </button>
@@ -224,7 +505,7 @@ export default function HomePage() {
                     </div>
                     <input 
                         value={search} onChange={e=>setSearch(e.target.value)}
-                        placeholder="ابحث..." 
+                        placeholder="ابحث في الإعلانات..." 
                         className="w-full p-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-100 outline-none focus:bg-white focus:text-gray-900 transition"
                     />
                 </div>
@@ -254,7 +535,9 @@ export default function HomePage() {
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {filteredListings.map(l => (
-                            <ListingCard key={l.id} item={l} />
+                            <div key={l.id} onClick={() => openDetails(l)} className="cursor-pointer">
+                                <ListingCard item={l} />
+                            </div>
                         ))}
                     </div>
                 )}
@@ -268,7 +551,31 @@ export default function HomePage() {
                 {view === 'map' ? <><Icons.Grid/> قائمة</> : <><Icons.Map/> خريطة</>}
             </button>
 
+            {/* Modals */}
             <AuthModal isOpen={modals.auth} onClose={()=>setModals({...modals, auth:false})} onLogin={()=>setModals({...modals, auth:false})} />
+            
+            <AddListingModal 
+                isOpen={modals.add} 
+                onClose={()=>setModals({...modals, add:false})} 
+                user={user} 
+                onAdd={handleAdd} 
+            />
+            
+            <ListingDetailsModal 
+                item={selectedItem} 
+                isOpen={modals.details} 
+                onClose={()=>setModals({...modals, details: false})} 
+                user={user}
+                onChat={(item) => { setModals({...modals, details: false}); setChatItem(item); }}
+            />
+
+            {chatItem && (
+                <ChatSystem 
+                    currentUser={user} 
+                    listing={chatItem} 
+                    onClose={() => setChatItem(null)} 
+                />
+            )}
         </div>
     );
 }
