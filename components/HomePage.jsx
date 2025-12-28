@@ -1,670 +1,844 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { firebase, auth, db, storage, googleProvider } from '../lib/firebase';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { auth, db } from "../lib/firebase";
 
-// --- ثوابت وإعدادات ---
+// Firebase (modular v9)
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
+
+import {
+  addDoc,
+  collection,
+  doc,
+  increment,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
+
+// ----------------- Constants -----------------
 const RATES = { USD_TO_YER: 1600, SAR_TO_YER: 420 };
-const YEMEN_CENTER = [15.5527, 48.5164]; 
+const YEMEN_CENTER = [15.5527, 48.5164];
 const DEFAULT_ZOOM = 6;
-// يمكنك تغيير الايميل هنا لاحقاً لجعله أدمن
-const ADMIN_EMAIL = "mansouralbarout@gmail.com"; 
 
-// --- Helper Functions ---
-const formatNumber = (num) => Math.round(num).toLocaleString('en-US');
-
-// --- Icons Component ---
-const Icons = {
-    Map: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>,
-    MapPin: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
-    Grid: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>,
-    Plus: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M5 12h14"/><path d="M12 5v14"/></svg>,
-    User: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
-    Search: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
-    X: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>,
-    Google: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" {...p}><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.26.81-.58z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>,
-    Phone: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>,
-    Whatsapp: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#25D366" {...p}><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.149-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.206-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.76.982.998-3.675-.236-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.826 9.826 0 0 1 2.9 6.994c-.004 5.45-4.437 9.88-9.885 9.88m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.333.151 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.333 11.89-11.893 0-3.18-1.24-6.162-3.495-8.411"/></svg>,
-    Car: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M14 16H9m10 0h3v-3.15M5 16H2v-3.15M7 10h10M5 16v4h3v-4M19 16v4h-3v-4M7.5 7h9l1.5 5h-12z"/></svg>,
-    Home: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
-    Smartphone: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>,
-    Zap: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
-    Camera: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>,
-    Send: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
-    Message: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
-    Bell: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
-    Sun: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
-    Moon: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>,
-    Trash: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>,
-    Edit: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
-    Shield: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
-    Hammer: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="m15 12-8.5 8.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0a2.12 2.12 0 0 1 0-3L12 9"/><path d="M17.64 15 22 10.64"/><path d="m20.91 11.7-1.25-1.25c-.6-.6-.93-1.4-.93-2.25V2.75A2.75 2.75 0 0 0 16 0h-2.25a2.12 2.12 0 0 0-1.5.62L2.62 10.25"/><path d="M7 5.5 18.5 17"/></svg>,
-    Eye: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>,
-    Star: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
-    StarFilled: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+// ----------------- Helpers -----------------
+const formatNumber = (num) => {
+  const n = Number(num || 0);
+  return Math.round(n).toLocaleString("en-US");
 };
 
-// --- DATA CONSTANTS ---
+function normalizeText(s) {
+  return String(s || "").toLowerCase().trim();
+}
+
+// ----------------- Icons -----------------
+const Icons = {
+  Map: (p) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...p}>
+      <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+      <line x1="8" y1="2" x2="8" y2="18" />
+      <line x1="16" y1="6" x2="16" y2="22" />
+    </svg>
+  ),
+  Grid: (p) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...p}>
+      <rect width="7" height="7" x="3" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="14" rx="1" />
+      <rect width="7" height="7" x="3" y="14" rx="1" />
+    </svg>
+  ),
+  Plus: (p) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" {...p}>
+      <path d="M5 12h14" />
+      <path d="M12 5v14" />
+    </svg>
+  ),
+  Search: (p) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...p}>
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+  ),
+  X: (p) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...p}>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  ),
+  MapPin: (p) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...p}>
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  ),
+  Eye: (p) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...p}>
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ),
+  Hammer: (p) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...p}>
+      <path d="m15 12-8.5 8.5a2.12 2.12 0 0 1-3 0 2.12 2.12 0 0 1 0-3L12 9" />
+      <path d="M17.64 15 22 10.64" />
+      <path d="M20.91 11.7 19.66 10.45A3.18 3.18 0 0 1 18.73 8.2V2.75A2.75 2.75 0 0 0 16 0h-2.25a2.12 2.12 0 0 0-1.5.62L2.62 10.25" />
+      <path d="M7 5.5 18.5 17" />
+    </svg>
+  ),
+};
+
+// ----------------- Data -----------------
 const CATEGORIES = [
-    { id: 'all', name: 'الكل', icon: Icons.Grid, color: '#64748b' },
-    { id: 'cars', name: 'سيارات', icon: Icons.Car, color: '#3b82f6' },
-    { id: 'real_estate', name: 'عقارات', icon: Icons.Home, color: '#10b981' },
-    { id: 'mobiles', name: 'جوالات', icon: Icons.Smartphone, color: '#8b5cf6' },
-    { id: 'solar', name: 'طاقة', icon: Icons.Zap, color: '#eab308' },
+  { id: "all", name: "الكل", icon: Icons.Grid },
+  { id: "cars", name: "سيارات", icon: Icons.Grid },
+  { id: "real_estate", name: "عقارات", icon: Icons.Grid },
+  { id: "mobiles", name: "جوالات", icon: Icons.Grid },
+  { id: "solar", name: "طاقة", icon: Icons.Grid },
 ];
+
 const CITIES = ["صنعاء", "عدن", "تعز", "الحديدة", "إب", "المكلا", "حضرموت", "ذمار", "مأرب", "عمران"];
 
-// --- COMPONENTS ---
-
+// ----------------- Logo -----------------
 const Logo = () => (
-    <div className="flex items-center gap-2">
-        <div className="bg-white p-1 rounded-lg shadow-sm dark:bg-gray-700">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="24" height="24" className="rounded overflow-hidden">
-                <rect width="100" height="100" fill="#1e40af"/>
-                <path d="M25 35 h50 v50 a5 5 0 0 1 -5 5 h-40 a5 5 0 0 1 -5 -5 z" fill="#fff"/>
-                <path d="M35 35 v-10 a15 15 0 0 1 30 0 v10" fill="none" stroke="#eab308" strokeWidth="6"/>
-                <text x="50" y="80" textAnchor="middle" fill="#1e40af" fontSize="24" fontWeight="900">ي</text>
-            </svg>
-        </div>
-        <h1 className="text-lg font-black text-white">سوق اليمن</h1>
+  <div className="flex items-center gap-2">
+    <div className="bg-white p-1 rounded-lg shadow-sm">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="26" height="26" className="rounded overflow-hidden">
+        <rect width="100" height="100" fill="#1e40af" />
+        <path d="M25 35 h50 v50 a5 5 0 0 1 -5 5 h-40 a5 5 0 0 1 -5 -5 z" fill="#fff" />
+        <path d="M35 35 v-10 a15 15 0 0 1 30 0 v10" fill="none" stroke="#eab308" strokeWidth="6" />
+        <text x="50" y="80" textAnchor="middle" fill="#1e40af" fontSize="24" fontWeight="900">
+          ي
+        </text>
+      </svg>
     </div>
+    <h1 className="text-lg font-black text-white">سوق اليمن</h1>
+  </div>
 );
 
-// --- مكون اختيار الموقع (LocationPicker) ---
-const LocationPicker = ({ onLocationSelect }) => {
-    const mapRef = useRef(null);
-    const mapInstance = useRef(null);
-    const markerRef = useRef(null);
-
-    useEffect(() => {
-        if (typeof window === 'undefined' || !window.L || !mapRef.current) return;
-
-        if (!mapInstance.current) {
-            mapInstance.current = window.L.map(mapRef.current).setView(YEMEN_CENTER, DEFAULT_ZOOM);
-            window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; سوق اليمن'
-            }).addTo(mapInstance.current);
-
-            mapInstance.current.on('click', async (e) => {
-                const { lat, lng } = e.latlng;
-                
-                if (markerRef.current) {
-                    markerRef.current.setLatLng([lat, lng]);
-                } else {
-                    markerRef.current = window.L.marker([lat, lng], { draggable: true }).addTo(mapInstance.current);
-                }
-
-                // محاكاة جلب العنوان
-                const osmUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=18/${lat}/${lng}`;
-                onLocationSelect({
-                    coords: [lat, lng],
-                    locationUrl: osmUrl,
-                    city: "موقع محدد"
-                });
-            });
-        }
-        setTimeout(() => mapInstance.current && mapInstance.current.invalidateSize(), 500);
-    }, []);
-
-    return <div ref={mapRef} className="w-full h-64 rounded-xl border border-gray-300 z-0 dark:border-gray-600" />;
-};
-
-// --- مكون رفع الصور المتعددة (MultiImageUploader) ---
-const MultiImageUploader = ({ maxFiles = 5, onImagesUpload }) => {
-    const [items, setItems] = useState([]);
-    const [busy, setBusy] = useState(false);
-
-    const handleSelect = async (e) => {
-        const files = Array.from(e.target.files || []);
-        if (!files.length) return;
-
-        setBusy(true);
-        const newItems = [];
-        
-        for (const file of files) {
-            try {
-                const storageRef = storage.ref();
-                const fileName = `listing_${Date.now()}_${file.name}`;
-                const imgRef = storageRef.child(`listings/${fileName}`);
-                await imgRef.put(file);
-                const url = await imgRef.getDownloadURL();
-                newItems.push({ url, preview: url });
-            } catch (err) {
-                console.error("Upload failed", err);
-                alert("فشل رفع الصورة: " + err.message);
-            }
-        }
-
-        setItems(prev => {
-            const updated = [...prev, ...newItems].slice(0, maxFiles);
-            onImagesUpload(updated.map(i => i.url));
-            return updated;
-        });
-        setBusy(false);
+// ----------------- Leaflet helpers (global scripts) -----------------
+function waitForLeaflet(timeoutMs = 6000) {
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    const tick = () => {
+      if (typeof window !== "undefined" && window.L && typeof window.L.map === "function") return resolve(window.L);
+      if (Date.now() - start > timeoutMs) return reject(new Error("Leaflet not loaded"));
+      setTimeout(tick, 50);
     };
+    tick();
+  });
+}
 
-    return (
-        <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center dark:border-gray-600">
-            <div className="grid grid-cols-3 gap-2 mb-4">
-                {items.map((it, idx) => (
-                    <img key={idx} src={it.url} className="w-full h-20 object-cover rounded" />
-                ))}
-            </div>
-            <input type="file" accept="image/*" multiple onChange={handleSelect} className="hidden" id="imagesUpload" />
-            <label htmlFor="imagesUpload" className="cursor-pointer block">
-                <div className="flex flex-col items-center gap-2">
-                    <Icons.Camera className="text-3xl text-gray-400" />
-                    <span className="text-sm font-bold">{busy ? 'جاري الرفع...' : 'اضغط لرفع الصور'}</span>
-                </div>
-            </label>
-        </div>
-    );
-};
-
-// --- Main Map Component ---
+// ----------------- Map: MainMap -----------------
 const MainMap = ({ items }) => {
-    const mapRef = useRef(null);
-    const mapInstance = useRef(null);
-    const markers = useRef(null);
+  const mapRef = useRef(null);
+  const mapInstance = useRef(null);
+  const markersLayer = useRef(null);
 
-    useEffect(() => {
-        if (typeof window === 'undefined' || !window.L || !mapRef.current) return;
-        
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const L = await waitForLeaflet();
+        if (!alive || !mapRef.current) return;
+
         if (!mapInstance.current) {
-            mapInstance.current = window.L.map(mapRef.current).setView(YEMEN_CENTER, 6);
-            window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: 'سوق اليمن'
-            }).addTo(mapInstance.current);
-            markers.current = window.L.markerClusterGroup();
-            mapInstance.current.addLayer(markers.current);
+          mapInstance.current = L.map(mapRef.current).setView(YEMEN_CENTER, DEFAULT_ZOOM);
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap",
+          }).addTo(mapInstance.current);
+
+          // marker cluster if available
+          markersLayer.current = L.markerClusterGroup ? L.markerClusterGroup() : L.featureGroup();
+          markersLayer.current.addTo(mapInstance.current);
         }
 
-        const map = mapInstance.current;
-        if (markers.current) {
-            markers.current.clearLayers();
-            if (items && items.length > 0) {
-                items.forEach(item => {
-                    if (item.coords && Array.isArray(item.coords)) {
-                        const m = window.L.marker(item.coords);
-                        m.bindPopup(`<b>${item.title}</b><br>${item.price} ${item.currency}`);
-                        markers.current.addLayer(m);
-                    }
-                });
+        // update markers
+        if (markersLayer.current) {
+          markersLayer.current.clearLayers();
+          (items || []).forEach((it) => {
+            if (it?.coords && Array.isArray(it.coords) && it.coords.length === 2) {
+              const m = L.marker(it.coords);
+              const safeTitle = String(it.title || "");
+              const safeCity = String(it.city || "");
+              m.bindPopup(`<b>${safeTitle}</b><br/>${safeCity}`);
+              markersLayer.current.addLayer(m);
             }
+          });
         }
-        setTimeout(() => map.invalidateSize(), 200);
-    }, [items]);
 
-    return <div ref={mapRef} className="w-full h-full min-h-[500px]" />;
+        setTimeout(() => mapInstance.current?.invalidateSize(), 200);
+      } catch {
+        // ignore map failure
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [items]);
+
+  return <div ref={mapRef} className="w-full h-full min-h-[500px] leaflet-container rounded-xl" />;
 };
 
-// --- AUTH MODAL ---
-const AuthModal = ({ isOpen, onClose, onLogin }) => {
-    const [isLogin, setIsLogin] = useState(true);
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
+// ----------------- LocationPicker -----------------
+const LocationPicker = ({ onPick }) => {
+  const mapRef = useRef(null);
+  const mapInstance = useRef(null);
+  const markerRef = useRef(null);
 
-    if (!isOpen) return null;
+  useEffect(() => {
+    let alive = true;
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-        try {
-            if (isLogin) {
-                await auth.signInWithEmailAndPassword(email, password);
-            } else {
-                await auth.createUserWithEmailAndPassword(email, password);
-            }
-            onLogin(); onClose();
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
+    (async () => {
+      try {
+        const L = await waitForLeaflet();
+        if (!alive || !mapRef.current) return;
 
-    const handleGoogle = async () => {
-        try {
-            await auth.signInWithPopup(googleProvider);
-            onLogin(); onClose();
-        } catch (err) { setError(err.message); }
-    };
+        if (!mapInstance.current) {
+          mapInstance.current = L.map(mapRef.current).setView(YEMEN_CENTER, DEFAULT_ZOOM);
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap",
+          }).addTo(mapInstance.current);
 
-    return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content dark:bg-gray-800 dark:text-gray-200" onClick={e => e.stopPropagation()}>
-                <h2 className="text-2xl font-bold mb-4">{isLogin ? 'دخول' : 'تسجيل'}</h2>
-                {error && <p className="text-red-500 mb-2">{error}</p>}
-                <button onClick={handleGoogle} className="w-full p-2 border rounded mb-4 flex justify-center items-center gap-2">
-                    <Icons.Google size={20} /> متابعة بجوجل
-                </button>
-                <form onSubmit={handleSubmit} className="space-y-3">
-                    <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="البريد" className="w-full p-2 border rounded dark:bg-gray-700" />
-                    <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="كلمة المرور" className="w-full p-2 border rounded dark:bg-gray-700" />
-                    <button disabled={loading} className="w-full bg-blue-600 text-white p-2 rounded">{loading ? '...' : (isLogin ? 'دخول' : 'تسجيل')}</button>
-                </form>
-                <button onClick={()=>setIsLogin(!isLogin)} className="text-blue-500 mt-2 text-sm w-full text-center">
-                    {isLogin ? 'إنشاء حساب جديد' : 'لديك حساب بالفعل؟'}
-                </button>
-            </div>
-        </div>
-    );
-};
+          mapInstance.current.on("click", (e) => {
+            const { lat, lng } = e.latlng;
+            const coords = [lat, lng];
 
-// --- LISTING CARD (SMART VERSION) ---
-// هذا هو الجزء الذي يضمن عمل المزاد والعملات
-const ListingCard = ({ item }) => {
-    const [timeLeft, setTimeLeft] = useState('');
-    
-    // منطق تحويل العملات
-    const getPrices = () => {
-        let base = parseFloat(item.price) || 0;
-        let yer = 0;
-        if (item.currency === 'USD') yer = base * RATES.USD_TO_YER;
-        else if (item.currency === 'SAR') yer = base * RATES.SAR_TO_YER;
-        else yer = base;
-        
-        return {
-            YER: formatNumber(yer),
-            USD: formatNumber(yer / RATES.USD_TO_YER),
-            SAR: formatNumber(yer / RATES.SAR_TO_YER)
-        };
-    };
+            if (markerRef.current) markerRef.current.setLatLng(coords);
+            else markerRef.current = L.marker(coords, { draggable: true }).addTo(mapInstance.current);
 
-    const prices = getPrices();
-
-    // منطق عداد المزاد
-    useEffect(() => {
-        if (item.isAuction && item.auctionEnd) {
-            const updateTimer = () => {
-                const now = new Date();
-                const end = new Date(item.auctionEnd);
-                const diff = end - now;
-                
-                if (diff <= 0) {
-                    setTimeLeft('انتهى المزاد');
-                    return;
-                }
-                
-                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                
-                setTimeLeft(`${days}يوم ${hours}س ${minutes}د`);
-            };
-            
-            updateTimer();
-            const interval = setInterval(updateTimer, 60000); // تحديث كل دقيقة
-            return () => clearInterval(interval);
-        }
-    }, [item.isAuction, item.auctionEnd]);
-
-    return (
-        <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-lg transition-all duration-300 group relative dark:bg-gray-800 dark:border-gray-700 cursor-pointer">
-            <div className="h-48 relative overflow-hidden bg-gray-200 dark:bg-gray-700">
-                <img 
-                    src={item.image || 'https://via.placeholder.com/400x300?text=No+Image'} 
-                    alt={item.title} 
-                    loading="lazy"
-                    className="w-full h-full object-cover group-hover:scale-110 transition duration-700"
-                />
-                
-                <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
-                    {item.isAuction && (
-                        <div className="bg-red-600 text-white px-2 py-1 rounded text-[10px] font-bold shadow-sm flex items-center gap-1">
-                            <Icons.Hammer size={12} /> مزاد
-                        </div>
-                    )}
-                    <div className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded-lg flex items-center gap-1">
-                        <Icons.MapPin size={10} /> {item.city}
-                    </div>
-                </div>
-            </div>
-
-            <div className="p-4">
-                <h2 className="font-bold text-gray-800 text-base line-clamp-1 mb-2 dark:text-gray-200">{item.title}</h2>
-                
-                {item.isAuction && (
-                    <div className="mb-3 bg-red-50 border border-red-100 p-2 rounded-lg text-center dark:bg-red-900/20 dark:border-red-800/30">
-                        <span className="text-xs text-red-600 font-bold block mb-1 dark:text-red-400">
-                            {timeLeft === 'انتهى المزاد' ? 'انتهى' : 'ينتهي خلال:'}
-                        </span>
-                        <span className="text-sm font-black text-red-800 dark:text-red-300">
-                            {timeLeft}
-                        </span>
-                    </div>
-                )}
-
-                <div className="bg-blue-50 rounded-xl p-3 space-y-1 dark:bg-blue-900/20 dark:border dark:border-blue-800/30">
-                    <div className="text-blue-900 font-black text-lg dark:text-blue-300">
-                        {formatNumber(item.price)} <span className="text-xs">{item.currency}</span>
-                    </div>
-                    <div className="flex justify-between text-[10px] text-gray-500 font-bold dark:text-gray-400 pt-1 border-t border-blue-200 dark:border-blue-800/30">
-                        <span>{prices.YER} ر.ي</span>
-                        <span>{prices.SAR} ر.س</span>
-                        <span>{prices.USD} $</span>
-                    </div>
-                </div>
-
-                <div className="flex justify-between text-xs text-gray-400 mt-3 dark:text-gray-500">
-                    <span className="flex items-center gap-1"><Icons.Eye size={14} /> {item.views || 0}</span>
-                    <span className="flex items-center gap-1"><Icons.Phone size={14} /> تواصل</span>
-                </div>
-            </div>
-        </article>
-    );
-};
-
-// --- نافذة إضافة إعلان ---
-const AddListingModal = ({ isOpen, onClose, user, onAdd }) => {
-    const [formData, setFormData] = useState({
-        title: '', price: '', currency: 'YER', city: '', category: 'cars', 
-        phone: '', description: '', images: [], coords: null, isAuction: false,
-        auctionEnd: '' // Added missing field
-    });
-    const [loading, setLoading] = useState(false);
-
-    if (!isOpen) return null;
-
-    const handleSubmit = async () => {
-        if (!formData.title || !formData.price || !formData.phone) {
-            alert('الرجاء تعبئة البيانات الأساسية');
-            return;
-        }
-        setLoading(true);
-        try {
-            await onAdd(formData);
-            onClose();
-        } catch (e) {
-            alert(e.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content dark:bg-gray-800 dark:text-gray-200" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold">إضافة إعلان</h2>
-                    <button onClick={onClose}><Icons.X /></button>
-                </div>
-                
-                <div className="space-y-3 max-h-[70vh] overflow-y-auto p-1">
-                    <input value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} placeholder="العنوان" className="w-full p-3 border rounded dark:bg-gray-700" />
-                    
-                    <div className="flex gap-2">
-                        <input type="number" value={formData.price} onChange={e=>setFormData({...formData, price: e.target.value})} placeholder="السعر" className="flex-1 p-3 border rounded dark:bg-gray-700" />
-                        <select value={formData.currency} onChange={e=>setFormData({...formData, currency: e.target.value})} className="p-3 border rounded dark:bg-gray-700">
-                            <option value="YER">ريال يمني</option>
-                            <option value="SAR">سعودي</option>
-                            <option value="USD">دولار</option>
-                        </select>
-                    </div>
-
-                    <div className="flex gap-2">
-                        <select value={formData.category} onChange={e=>setFormData({...formData, category: e.target.value})} className="flex-1 p-3 border rounded dark:bg-gray-700">
-                            {CATEGORIES.filter(c=>c.id!=='all').map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                        <select value={formData.city} onChange={e=>setFormData({...formData, city: e.target.value})} className="flex-1 p-3 border rounded dark:bg-gray-700">
-                            <option value="">المدينة</option>
-                            {CITIES.map(c=><option key={c} value={c}>{c}</option>)}
-                        </select>
-                    </div>
-
-                    <input type="tel" value={formData.phone} onChange={e=>setFormData({...formData, phone: e.target.value})} placeholder="رقم الهاتف" className="w-full p-3 border rounded dark:bg-gray-700" />
-                    
-                    <textarea value={formData.description} onChange={e=>setFormData({...formData, description: e.target.value})} placeholder="الوصف..." className="w-full p-3 border rounded h-24 dark:bg-gray-700"></textarea>
-
-                    <div className="flex items-center gap-2 mb-2 bg-gray-50 p-2 rounded dark:bg-gray-700">
-                        <input type="checkbox" checked={formData.isAuction} onChange={e=>setFormData({...formData, isAuction: e.target.checked})} />
-                        <label className="font-bold">تفعيل المزاد العلني</label>
-                    </div>
-                    
-                    {formData.isAuction && (
-                        <div className="mb-2">
-                            <label className="text-xs">تاريخ انتهاء المزاد</label>
-                            <input type="datetime-local" value={formData.auctionEnd} onChange={e=>setFormData({...formData, auctionEnd: e.target.value})} className="w-full p-2 border rounded dark:bg-gray-700" />
-                        </div>
-                    )}
-
-                    <MultiImageUploader onImagesUpload={(urls) => setFormData({...formData, images: urls})} />
-                    
-                    <div className="text-sm font-bold mt-2">حدد الموقع على الخريطة:</div>
-                    <LocationPicker onLocationSelect={(loc) => setFormData({...formData, coords: loc.coords, locationUrl: loc.locationUrl})} />
-                </div>
-
-                <button onClick={handleSubmit} disabled={loading} className="w-full bg-yellow-500 text-black font-bold py-3 rounded mt-4 hover:bg-yellow-400">
-                    {loading ? 'جاري النشر...' : 'نشر الإعلان'}
-                </button>
-            </div>
-        </div>
-    );
-};
-
-// --- نظام الدردشة المبسط ---
-const ChatSystem = ({ currentUser, listing, onClose }) => {
-    const [messages, setMessages] = useState([]);
-    const [txt, setTxt] = useState('');
-    const chatId = listing ? `chat_${[currentUser.uid, listing.userId].sort().join('_')}_${listing.id}` : null;
-
-    useEffect(() => {
-        if (!chatId) return;
-        const unsub = db.collection('chats').doc(chatId).collection('messages')
-            .orderBy('createdAt', 'asc').onSnapshot(snap => {
-                setMessages(snap.docs.map(d => d.data()));
+            markerRef.current.on("dragend", (ev) => {
+              const p = ev.target.getLatLng();
+              onPick([p.lat, p.lng]);
             });
-        return () => unsub();
-    }, [chatId]);
 
-    const send = async () => {
-        if (!txt.trim()) return;
-        await db.collection('chats').doc(chatId).collection('messages').add({
-            text: txt, senderId: currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        setTxt('');
+            onPick(coords);
+          });
+        }
+
+        setTimeout(() => mapInstance.current?.invalidateSize(), 200);
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => {
+      alive = false;
     };
+  }, [onPick]);
 
-    return (
-        <div className="fixed inset-0 bg-black/50 z-[1200] flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-md h-[500px] rounded-xl flex flex-col dark:bg-gray-800">
-                <div className="p-4 border-b flex justify-between">
-                    <h3 className="font-bold">{listing.title}</h3>
-                    <button onClick={onClose}><Icons.X/></button>
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                    {messages.map((m, i) => (
-                        <div key={i} className={`p-2 rounded max-w-[80%] ${m.senderId === currentUser.uid ? 'bg-blue-100 mr-auto' : 'bg-gray-100 ml-auto dark:bg-gray-700'}`}>
-                            {m.text}
-                        </div>
-                    ))}
-                </div>
-                <div className="p-4 border-t flex gap-2">
-                    <input value={txt} onChange={e=>setTxt(e.target.value)} className="flex-1 border rounded p-2 dark:bg-gray-700" placeholder="اكتب رسالة..." />
-                    <button onClick={send} className="bg-blue-600 text-white p-2 rounded"><Icons.Send/></button>
-                </div>
-            </div>
-        </div>
-    );
+  return <div ref={mapRef} className="w-full h-64 rounded-xl border border-gray-300 leaflet-container" />;
 };
 
-// --- نافذة التفاصيل ---
-const ListingDetailsModal = ({ item, isOpen, onClose, user, onChat }) => {
-    if (!isOpen || !item) return null;
-    const img = item.images && item.images.length ? item.images[0] : item.image;
+// ----------------- AuthModal -----------------
+const AuthModal = ({ open, onClose }) => {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
 
-    return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content dark:bg-gray-800 dark:text-gray-200" onClick={e => e.stopPropagation()}>
-                <button onClick={onClose} className="absolute top-4 left-4 bg-white/50 p-1 rounded-full"><Icons.X /></button>
-                <img src={img || 'https://via.placeholder.com/400'} className="w-full h-64 object-cover rounded-xl mb-4" />
-                
-                <h2 className="text-2xl font-bold mb-2">{item.title}</h2>
-                <div className="text-xl font-black text-blue-600 mb-4">{formatNumber(item.price)} {item.currency}</div>
-                
-                <div className="flex gap-4 mb-4 text-sm text-gray-500 dark:text-gray-400">
-                    <span><Icons.MapPin className="inline"/> {item.city}</span>
-                    <span><Icons.Eye className="inline"/> {item.views}</span>
-                </div>
+  if (!open) return null;
 
-                <p className="text-gray-700 dark:text-gray-300 mb-6 whitespace-pre-line">{item.description}</p>
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    try {
+      if (isLogin) await signInWithEmailAndPassword(auth, email, password);
+      else await createUserWithEmailAndPassword(auth, email, password);
+      onClose();
+    } catch (ex) {
+      setErr(ex?.message || "خطأ");
+    } finally {
+      setBusy(false);
+    }
+  };
 
-                <div className="flex gap-2">
-                    <a href={`tel:${item.phone}`} className="flex-1 bg-green-600 text-white py-3 rounded-lg text-center font-bold flex items-center justify-center gap-2">
-                        <Icons.Phone /> اتصال
-                    </a>
-                    {user && user.uid !== item.userId && (
-                        <button onClick={() => onChat(item)} className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2">
-                            <Icons.Message /> مراسلة
-                        </button>
-                    )}
-                </div>
-            </div>
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-xl font-black">{isLogin ? "تسجيل الدخول" : "إنشاء حساب"}</h2>
+          <button onClick={onClose} className="p-1">
+            <Icons.X />
+          </button>
         </div>
-    );
+
+        {err && <div className="text-red-600 text-sm mb-2">{err}</div>}
+
+        <form onSubmit={submit} className="space-y-3">
+          <input
+            className="w-full p-3 border rounded-xl"
+            type="email"
+            placeholder="البريد الإلكتروني"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <input
+            className="w-full p-3 border rounded-xl"
+            type="password"
+            placeholder="كلمة المرور"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+
+          <button disabled={busy} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">
+            {busy ? "..." : isLogin ? "دخول" : "تسجيل"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsLogin((v) => !v)}
+            className="w-full text-sm text-blue-700 font-bold"
+          >
+            {isLogin ? "إنشاء حساب جديد" : "لديك حساب؟ سجّل دخول"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
 };
 
-// --- MAIN PAGE COMPONENT ---
-export default function HomePage() {
-    const [user, setUser] = useState(null);
-    const [listings, setListings] = useState([]);
-    const [view, setView] = useState('home');
-    const [modals, setModals] = useState({ auth: false, add: false, details: false });
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [chatItem, setChatItem] = useState(null);
-    const [activeCat, setActiveCat] = useState('all');
-    const [search, setSearch] = useState('');
+// ----------------- ListingCard (with currency + auction timer) -----------------
+const ListingCard = ({ item, onOpen }) => {
+  const [timeLeft, setTimeLeft] = useState("");
 
-    useEffect(() => {
-        const unsubAuth = auth.onAuthStateChanged(setUser);
-        const unsubDb = db.collection('listings').orderBy('createdAt', 'desc').onSnapshot(snap => {
-            const data = snap.docs.map(d => ({id: d.id, ...d.data()}));
-            setListings(data);
-        });
-        return () => { unsubAuth(); unsubDb(); };
-    }, []);
+  const prices = useMemo(() => {
+    const base = Number(item?.price || 0);
+    let yer = 0;
+    if (item?.currency === "USD") yer = base * RATES.USD_TO_YER;
+    else if (item?.currency === "SAR") yer = base * RATES.SAR_TO_YER;
+    else yer = base;
 
-    const handleAdd = async (data) => {
-        await db.collection('listings').add({
-            ...data,
-            userId: user.uid,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            views: 0,
-            image: data.images[0] || '' // الصورة الرئيسية
-        });
+    return {
+      YER: formatNumber(yer),
+      USD: formatNumber(yer / RATES.USD_TO_YER),
+      SAR: formatNumber(yer / RATES.SAR_TO_YER),
+    };
+  }, [item]);
+
+  useEffect(() => {
+    if (!item?.isAuction || !item?.auctionEnd) return;
+
+    const tick = () => {
+      const now = new Date();
+      const end = new Date(item.auctionEnd);
+      const diff = end - now;
+      if (diff <= 0) return setTimeLeft("انتهى المزاد");
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      setTimeLeft(`${days}ي ${hours}س ${minutes}د`);
     };
 
-    const openDetails = (item) => {
-        setSelectedItem(item);
-        setModals({...modals, details: true});
-        // زيادة المشاهدات
-        db.collection('listings').doc(item.id).update({
-            views: firebase.firestore.FieldValue.increment(1)
-        });
-    };
+    tick();
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, [item?.isAuction, item?.auctionEnd]);
 
-    const filteredListings = listings.filter(l => 
-        (activeCat === 'all' || l.category === activeCat) &&
-        (l.title.toLowerCase().includes(search.toLowerCase()))
-    );
+  const img =
+    (item?.images && item.images.length ? item.images[0] : "") ||
+    item?.image ||
+    "https://via.placeholder.com/400x300?text=No+Image";
 
-    const toggleDarkMode = () => {
-        document.body.classList.toggle('dark-mode');
-    };
+  return (
+    <article
+      onClick={onOpen}
+      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer"
+    >
+      <div className="h-48 relative overflow-hidden bg-gray-200">
+        <img src={img} alt={item?.title || ""} className="w-full h-full object-cover" loading="lazy" />
+        <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+          {item?.isAuction && (
+            <div className="bg-red-600 text-white px-2 py-1 rounded text-[10px] font-black flex items-center gap-1">
+              <Icons.Hammer /> مزاد
+            </div>
+          )}
+          <div className="bg-black/60 text-white text-[10px] px-2 py-1 rounded-lg flex items-center gap-1">
+            <Icons.MapPin /> {item?.city || "—"}
+          </div>
+        </div>
+      </div>
 
-    return (
-        <div className="min-h-screen pb-20">
-            {/* Header */}
-            <header className="header-compact text-white shadow-lg">
-                <div className="container mx-auto px-4 pb-4">
-                    <div className="flex justify-between items-center mb-4">
-                        <div onClick={()=>setView('home')} className="cursor-pointer"><Logo /></div>
-                        <div className="flex gap-2">
-                             <button onClick={toggleDarkMode} className="p-2 bg-white/20 rounded-full"><Icons.Sun size={20}/></button>
-                             <button onClick={()=>user ? setModals({...modals, add: true}) : setModals({...modals, auth:true})} className="p-2 bg-yellow-400 text-black rounded-full shadow">
-                                <Icons.Plus size={20}/>
-                             </button>
-                             <button onClick={()=>user ? setView('profile') : setModals({...modals, auth:true})} className="p-2 bg-white/20 rounded-full">
-                                {user ? <Icons.User size={20}/> : "دخول"}
-                             </button>
-                        </div>
-                    </div>
-                    <input 
-                        value={search} onChange={e=>setSearch(e.target.value)}
-                        placeholder="ابحث في الإعلانات..." 
-                        className="w-full p-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-100 outline-none focus:bg-white focus:text-gray-900 transition"
-                    />
-                </div>
-            </header>
+      <div className="p-4">
+        <h3 className="font-black text-gray-900 line-clamp-1 mb-2">{item?.title || "بدون عنوان"}</h3>
 
-            {/* Categories */}
-            {view === 'home' && (
-                <div className="category-scroll-container sticky top-[100px] z-10">
-                    {CATEGORIES.map(c => (
-                        <div key={c.id} onClick={()=>setActiveCat(c.id)} className={`flex flex-col items-center min-w-[60px] cursor-pointer ${activeCat===c.id ? 'text-blue-600' : 'text-gray-500'}`}>
-                            <div className={`p-3 rounded-xl mb-1 ${activeCat===c.id ? 'bg-blue-100' : 'bg-gray-100 dark:bg-gray-700'}`}>
-                                <c.icon size={24} color={activeCat===c.id ? c.color : 'currentColor'}/>
-                            </div>
-                            <span className="text-[10px] font-bold">{c.name}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
+        {item?.isAuction && (
+          <div className="mb-2 bg-red-50 border border-red-100 p-2 rounded-lg text-center">
+            <div className="text-[11px] text-red-700 font-black">{timeLeft || "..."}</div>
+          </div>
+        )}
 
-            {/* Main Content */}
-            <main className="container mx-auto px-4 py-4">
-                {view === 'map' ? (
-                     <div className="h-[70vh] rounded-xl overflow-hidden border dark:border-gray-700 relative">
-                        <MainMap items={filteredListings} />
-                        <button onClick={()=>setView('home')} className="absolute top-4 right-4 z-[1000] bg-white p-2 rounded-full shadow"><Icons.X /></button>
-                     </div>
-                ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {filteredListings.map(l => (
-                            <div key={l.id} onClick={() => openDetails(l)} className="cursor-pointer">
-                                <ListingCard item={l} />
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </main>
-            
-            {/* Floating Action Button */}
-            <button 
-                onClick={()=>setView(view === 'map' ? 'home' : 'map')}
-                className="fixed bottom-6 left-6 bg-blue-600 text-white p-4 rounded-full shadow-lg z-50 flex items-center gap-2"
+        <div className="bg-blue-50 rounded-xl p-3 space-y-1">
+          <div className="text-blue-900 font-black text-lg">
+            {formatNumber(item?.price)} <span className="text-xs">{item?.currency || "YER"}</span>
+          </div>
+          <div className="flex justify-between text-[10px] text-gray-600 font-bold pt-1 border-t border-blue-200">
+            <span>{prices.YER} ر.ي</span>
+            <span>{prices.SAR} ر.س</span>
+            <span>{prices.USD} $</span>
+          </div>
+        </div>
+
+        <div className="flex justify-between text-xs text-gray-500 mt-3">
+          <span className="flex items-center gap-1">
+            <Icons.Eye /> {item?.views || 0}
+          </span>
+          <span className="text-blue-700 font-bold">تفاصيل</span>
+        </div>
+      </div>
+    </article>
+  );
+};
+
+// ----------------- Details Modal -----------------
+const ListingDetailsModal = ({ open, item, onClose }) => {
+  if (!open || !item) return null;
+
+  const img =
+    (item?.images && item.images.length ? item.images[0] : "") ||
+    item?.image ||
+    "https://via.placeholder.com/400x300?text=No+Image";
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content relative" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-3 left-3 bg-white/70 p-1 rounded-full">
+          <Icons.X />
+        </button>
+
+        <img src={img} className="w-full h-64 object-cover rounded-xl mb-4" alt={item?.title || ""} />
+
+        <h2 className="text-2xl font-black mb-2">{item?.title}</h2>
+
+        <div className="text-xl font-black text-blue-600 mb-3">
+          {formatNumber(item?.price)} {item?.currency}
+        </div>
+
+        <div className="flex gap-4 mb-4 text-sm text-gray-600">
+          <span className="flex items-center gap-1">
+            <Icons.MapPin /> {item?.city || "—"}
+          </span>
+          <span className="flex items-center gap-1">
+            <Icons.Eye /> {item?.views || 0}
+          </span>
+        </div>
+
+        {item?.description && <p className="text-gray-700 whitespace-pre-line mb-5">{item.description}</p>}
+
+        {item?.phone && (
+          <a
+            href={`tel:${item.phone}`}
+            className="w-full block bg-green-600 text-white py-3 rounded-xl text-center font-black"
+          >
+            اتصال: {item.phone}
+          </a>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ----------------- Add Listing Modal -----------------
+const AddListingModal = ({ open, onClose, onAdd }) => {
+  const [data, setData] = useState({
+    title: "",
+    price: "",
+    currency: "YER",
+    category: "cars",
+    city: "",
+    phone: "",
+    description: "",
+    image: "",
+    images: [],
+    coords: null,
+    isAuction: false,
+    auctionEnd: "",
+  });
+
+  const [busy, setBusy] = useState(false);
+
+  if (!open) return null;
+
+  const addImageUrl = () => {
+    const url = String(data.image || "").trim();
+    if (!url) return;
+    setData((p) => ({ ...p, images: [...(p.images || []), url].slice(0, 5), image: "" }));
+  };
+
+  const submit = async () => {
+    if (!data.title || !data.price || !data.phone) {
+      alert("الرجاء تعبئة: العنوان + السعر + رقم الهاتف");
+      return;
+    }
+    setBusy(true);
+    try {
+      await onAdd({
+        ...data,
+        price: Number(data.price),
+        image: (data.images && data.images[0]) || "",
+      });
+      onClose();
+    } catch (e) {
+      alert(e?.message || "حدث خطأ");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-xl font-black">إضافة إعلان</h2>
+          <button onClick={onClose} className="p-1">
+            <Icons.X />
+          </button>
+        </div>
+
+        <div className="space-y-3 max-h-[70vh] overflow-y-auto p-1">
+          <input
+            className="w-full p-3 border rounded-xl"
+            placeholder="العنوان"
+            value={data.title}
+            onChange={(e) => setData((p) => ({ ...p, title: e.target.value }))}
+          />
+
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              className="w-full p-3 border rounded-xl"
+              type="number"
+              placeholder="السعر"
+              value={data.price}
+              onChange={(e) => setData((p) => ({ ...p, price: e.target.value }))}
+            />
+            <select
+              className="w-full p-3 border rounded-xl"
+              value={data.currency}
+              onChange={(e) => setData((p) => ({ ...p, currency: e.target.value }))}
             >
-                {view === 'map' ? <><Icons.Grid/> قائمة</> : <><Icons.Map/> خريطة</>}
-            </button>
+              <option value="YER">ريال يمني</option>
+              <option value="SAR">ريال سعودي</option>
+              <option value="USD">دولار</option>
+            </select>
+          </div>
 
-            {/* Modals */}
-            <AuthModal isOpen={modals.auth} onClose={()=>setModals({...modals, auth:false})} onLogin={()=>setModals({...modals, auth:false})} />
-            
-            <AddListingModal 
-                isOpen={modals.add} 
-                onClose={()=>setModals({...modals, add:false})} 
-                user={user} 
-                onAdd={handleAdd} 
-            />
-            
-            <ListingDetailsModal 
-                item={selectedItem} 
-                isOpen={modals.details} 
-                onClose={()=>setModals({...modals, details: false})} 
-                user={user}
-                onChat={(item) => { setModals({...modals, details: false}); setChatItem(item); }}
-            />
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              className="w-full p-3 border rounded-xl"
+              value={data.category}
+              onChange={(e) => setData((p) => ({ ...p, category: e.target.value }))}
+            >
+              {CATEGORIES.filter((c) => c.id !== "all").map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
 
-            {chatItem && (
-                <ChatSystem 
-                    currentUser={user} 
-                    listing={chatItem} 
-                    onClose={() => setChatItem(null)} 
-                />
+            <select
+              className="w-full p-3 border rounded-xl"
+              value={data.city}
+              onChange={(e) => setData((p) => ({ ...p, city: e.target.value }))}
+            >
+              <option value="">المدينة</option>
+              {CITIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <input
+            className="w-full p-3 border rounded-xl"
+            placeholder="رقم الهاتف"
+            value={data.phone}
+            onChange={(e) => setData((p) => ({ ...p, phone: e.target.value }))}
+          />
+
+          <textarea
+            className="w-full p-3 border rounded-xl h-24"
+            placeholder="الوصف"
+            value={data.description}
+            onChange={(e) => setData((p) => ({ ...p, description: e.target.value }))}
+          />
+
+          <div className="border rounded-xl p-3">
+            <div className="font-black mb-2 text-sm">صور (روابط) - اختياري (حتى 5)</div>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 p-2 border rounded-lg"
+                placeholder="ضع رابط صورة ثم اضغط إضافة"
+                value={data.image}
+                onChange={(e) => setData((p) => ({ ...p, image: e.target.value }))}
+              />
+              <button onClick={addImageUrl} className="bg-blue-600 text-white px-3 rounded-lg font-black">
+                إضافة
+              </button>
+            </div>
+
+            {data.images?.length > 0 && (
+              <div className="grid grid-cols-3 gap-2 mt-3">
+                {data.images.map((u, i) => (
+                  <img key={i} src={u} className="w-full h-20 object-cover rounded" alt="" />
+                ))}
+              </div>
             )}
+          </div>
+
+          <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl">
+            <input
+              type="checkbox"
+              checked={data.isAuction}
+              onChange={(e) => setData((p) => ({ ...p, isAuction: e.target.checked }))}
+            />
+            <span className="font-black text-sm">تفعيل المزاد</span>
+          </div>
+
+          {data.isAuction && (
+            <div>
+              <div className="text-xs font-bold mb-1">تاريخ انتهاء المزاد</div>
+              <input
+                type="datetime-local"
+                className="w-full p-3 border rounded-xl"
+                value={data.auctionEnd}
+                onChange={(e) => setData((p) => ({ ...p, auctionEnd: e.target.value }))}
+              />
+            </div>
+          )}
+
+          <div className="font-black text-sm mt-2">حدد الموقع على الخريطة (اختياري):</div>
+          <LocationPicker onPick={(coords) => setData((p) => ({ ...p, coords }))} />
         </div>
+
+        <button
+          onClick={submit}
+          disabled={busy}
+          className="w-full bg-yellow-400 text-black py-3 rounded-xl font-black mt-4"
+        >
+          {busy ? "جاري النشر..." : "نشر الإعلان"}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ----------------- Main HomePage -----------------
+export default function HomePage() {
+  const [user, setUser] = useState(null);
+  const [listings, setListings] = useState([]);
+  const [view, setView] = useState("home"); // home | map
+  const [activeCat, setActiveCat] = useState("all");
+  const [search, setSearch] = useState("");
+
+  const [authOpen, setAuthOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selected, setSelected] = useState(null);
+
+  // Auth listener
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => setUser(u || null));
+    return () => unsub();
+  }, []);
+
+  // Listings realtime
+  useEffect(() => {
+    const qy = query(collection(db, "listings"), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(
+      qy,
+      (snap) => {
+        const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setListings(data);
+      },
+      () => {}
     );
+    return () => unsub();
+  }, []);
+
+  const filtered = useMemo(() => {
+    const s = normalizeText(search);
+    return listings.filter((l) => {
+      const okCat = activeCat === "all" || l.category === activeCat;
+      if (!okCat) return false;
+      if (!s) return true;
+      const t = normalizeText(l.title);
+      const c = normalizeText(l.city);
+      return t.includes(s) || c.includes(s);
+    });
+  }, [listings, activeCat, search]);
+
+  const openDetails = async (item) => {
+    setSelected(item);
+    setDetailsOpen(true);
+    try {
+      await updateDoc(doc(db, "listings", item.id), { views: increment(1) });
+    } catch {}
+  };
+
+  const addListing = async (data) => {
+    if (!user) {
+      setAuthOpen(true);
+      return;
+    }
+    await addDoc(collection(db, "listings"), {
+      ...data,
+      userId: user.uid,
+      userEmail: user.email || "",
+      views: 0,
+      createdAt: serverTimestamp(),
+    });
+  };
+
+  const toggleDarkMode = () => {
+    document.body.classList.toggle("dark-mode");
+  };
+
+  return (
+    <div className="min-h-screen pb-20">
+      {/* Header */}
+      <header className="header-compact text-white shadow-lg">
+        <div className="container mx-auto px-4 pb-4">
+          <div className="flex justify-between items-center mb-4">
+            <div onClick={() => setView("home")} className="cursor-pointer">
+              <Logo />
+            </div>
+
+            <div className="flex gap-2 items-center">
+              <button onClick={toggleDarkMode} className="p-2 bg-white/20 rounded-full">
+                ☀️
+              </button>
+
+              <button
+                onClick={() => (user ? setAddOpen(true) : setAuthOpen(true))}
+                className="p-2 bg-yellow-400 text-black rounded-full shadow"
+                title="إضافة إعلان"
+              >
+                <Icons.Plus />
+              </button>
+
+              {user ? (
+                <button
+                  onClick={() => signOut(auth)}
+                  className="px-3 py-2 bg-white/20 rounded-full text-sm font-black"
+                  title="تسجيل خروج"
+                >
+                  خروج
+                </button>
+              ) : (
+                <button
+                  onClick={() => setAuthOpen(true)}
+                  className="px-3 py-2 bg-white/20 rounded-full text-sm font-black"
+                >
+                  دخول
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="relative">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="ابحث في الإعلانات..."
+              className="w-full p-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-100 outline-none focus:bg-white focus:text-gray-900 transition pr-10"
+            />
+            <span className="absolute right-3 top-3 text-white/80">
+              <Icons.Search />
+            </span>
+          </div>
+        </div>
+      </header>
+
+      {/* Categories */}
+      {view === "home" && (
+        <div className="category-scroll-container sticky top-[100px] z-10">
+          {CATEGORIES.map((c) => (
+            <div
+              key={c.id}
+              onClick={() => setActiveCat(c.id)}
+              className={`flex flex-col items-center min-w-[60px] cursor-pointer ${
+                activeCat === c.id ? "text-blue-600" : "text-gray-500"
+              }`}
+            >
+              <div className={`p-3 rounded-xl mb-1 ${activeCat === c.id ? "bg-blue-100" : "bg-gray-100"}`}>
+                <c.icon />
+              </div>
+              <span className="text-[10px] font-bold">{c.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Main */}
+      <main className="container mx-auto px-4 py-4">
+        {view === "map" ? (
+          <div className="h-[70vh] rounded-xl overflow-hidden border relative">
+            <MainMap items={filtered} />
+            <button
+              onClick={() => setView("home")}
+              className="absolute top-4 right-4 z-[1000] bg-white p-2 rounded-full shadow"
+              title="إغلاق الخريطة"
+            >
+              <Icons.X />
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map((l) => (
+              <ListingCard key={l.id} item={l} onOpen={() => openDetails(l)} />
+            ))}
+            {filtered.length === 0 && (
+              <div className="text-center text-gray-500 py-20 col-span-full">لا توجد إعلانات</div>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* Floating Map Button */}
+      <button
+        onClick={() => setView(view === "map" ? "home" : "map")}
+        className="fixed bottom-6 left-6 bg-blue-600 text-white px-4 py-3 rounded-full shadow-lg z-50 flex items-center gap-2 font-black"
+      >
+        {view === "map" ? (
+          <>
+            <Icons.Grid /> قائمة
+          </>
+        ) : (
+          <>
+            <Icons.Map /> خريطة
+          </>
+        )}
+      </button>
+
+      {/* Modals */}
+      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
+
+      <AddListingModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onAdd={addListing}
+      />
+
+      <ListingDetailsModal
+        open={detailsOpen}
+        item={selected}
+        onClose={() => setDetailsOpen(false)}
+      />
+    </div>
+  );
 }
