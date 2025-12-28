@@ -1,17 +1,26 @@
-// app/layout.jsx
-import "./globals.css";
+import './globals.css';
+import Head from 'next/head';
 
 export const metadata = {
-  title: "سوق اليمن | بيع وشراء كل شيء في اليمن",
-  description:
-    "سوق اليمن - منصتك للإعلانات في كل محافظات اليمن، بيع وشراء السيارات والعقارات والطاقة الشمسية والجوالات بسهولة.",
+  title: 'سوق اليمن | أكبر سوق إلكتروني',
+  description: 'بيع وشراء العقارات والسيارات في اليمن',
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="ar" dir="rtl">
-      <body className="bg-slate-100 text-slate-900 antialiased">
+      <head>
+        <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+        {/* Leaflet CSS for Maps */}
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+      </head>
+      <body>
         {children}
+        {/* Scripts for Leaflet maps compatibility */}
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+        <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js" defer></script>
       </body>
     </html>
   );
