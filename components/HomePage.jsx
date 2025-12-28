@@ -23,6 +23,7 @@ import AdminPanel from './AdminPanel';
 const YEMEN_CENTER = [15.5527, 48.5164]; 
 const DEFAULT_ZOOM = 6;
 const ADMIN_EMAIL = "mansouralbarout@gmail.com";
+const ADMIN_PHONE = "770991885"; // إضافة رقم المدير
 const ADMIN_EMAILS = [ADMIN_EMAIL].map(e => String(e || '').toLowerCase());
 const isAdminEmail = (email) => !!email && ADMIN_EMAILS.includes(String(email).toLowerCase());
 
@@ -45,6 +46,62 @@ const CATEGORIES = [
     { id: 'livestock', name: 'مواشي', icon: Icons.PawPrint, color: '#d97706' },
     { id: 'yemeni_products', name: 'منتجات يمنية', icon: Icons.ShoppingBag, color: '#16a34a' },
     { id: 'others', name: 'أخرى', icon: Icons.Grid, color: '#94a3b8' },
+];
+
+// بيانات الإعلانات الافتراضية (من الكود القديم)
+const SAMPLE_LISTINGS = [
+    {
+        title: 'تويوتا كامري 2022 موديل حديث',
+        price: 35000,
+        currency: 'USD',
+        category: 'cars',
+        city: 'صنعاء',
+        description: 'كامري 2022 فل كامل، لون أبيض، 20 ألف كم فقط، بحالة الوكالة',
+        phone: ADMIN_PHONE,
+        isWhatsapp: true,
+        image: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=400&h=300&fit=crop',
+        coords: [15.3694, 44.1910],
+        views: 150, likes: 25, isActive: true, featured: true
+    },
+    {
+        title: 'فيلا فاخرة في حي الروضة صنعاء',
+        price: 250000,
+        currency: 'USD',
+        category: 'real_estate',
+        city: 'صنعاء',
+        description: 'فيلا 4 غرف نوم، 3 دور، ملحق، حديقة، جراج لسيارتين',
+        phone: ADMIN_PHONE,
+        isWhatsapp: true,
+        image: 'https://images.unsplash.com/photo-1613977257363-707ba9348227?w=400&h=300&fit=crop',
+        coords: [15.3547, 44.2066],
+        views: 320, likes: 45, isActive: true, featured: true
+    },
+    {
+        title: 'آيفون 14 برو ماكس جديد',
+        price: 1200,
+        currency: 'USD',
+        category: 'mobiles',
+        city: 'عدن',
+        description: 'آيفون 14 برو ماكس 256 جيجا، ضمان سنة، شاحن أصلي',
+        phone: ADMIN_PHONE,
+        isWhatsapp: true,
+        image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=300&fit=crop',
+        coords: [12.7855, 45.0187],
+        views: 210, likes: 38, isActive: true
+    },
+    {
+        title: 'نظام طاقة شمسية 5 كيلو وات',
+        price: 4500,
+        currency: 'USD',
+        category: 'solar',
+        city: 'تعز',
+        description: 'نظام متكامل مع بطاريات وبوابة شحن، ضمان 10 سنوات',
+        phone: ADMIN_PHONE,
+        isWhatsapp: true,
+        image: 'https://images.unsplash.com/photo-1509391366360-2e959784a276?w=400&h=300&fit=crop',
+        coords: [13.5795, 44.0209],
+        views: 180, likes: 32, isActive: true
+    }
 ];
 
 const formatNumber = (num) => Math.round(num).toLocaleString('en-US');
@@ -608,6 +665,25 @@ export default function HomePage() {
     // State للتعديل
     const [editItem, setEditItem] = useState(null);
 
+    // دالة إضافة الإعلانات الافتراضية
+    const addSampleListings = async () => {
+        const batch = writeBatch(db);
+        SAMPLE_LISTINGS.forEach((item) => {
+            const ref = doc(collection(db, 'listings'));
+            batch.set(ref, {
+                ...item,
+                userId: user.uid,
+                userName: 'مدير النظام',
+                userEmail: user.email,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+                isAdmin: true
+            });
+        });
+        await batch.commit();
+        alert('تم إضافة الإعلانات الافتراضية بنجاح');
+    };
+
     // مراقبة المستخدم
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, async (u) => {
@@ -783,7 +859,16 @@ export default function HomePage() {
                     <MainMap listings={filtered} onViewDetails={(it) => setSelectedListingId(it.id)} />
                 ) : (
                     <>
-                        {filtered.length === 0 ? <div className="text-center py-20 text-gray-400">لا توجد إعلانات</div> : (
+                        {filtered.length === 0 ? (
+                            <div className="text-center py-20 text-gray-400">
+                                <p className="mb-4">لا توجد إعلانات حالياً</p>
+                                {isAdmin && (
+                                    <button onClick={addSampleListings} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">
+                                        إضافة إعلانات افتراضية
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                                 {filtered.map(item => (
                                     <ListingCard 
