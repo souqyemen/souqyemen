@@ -1,27 +1,30 @@
+// components/HomePage.jsx
 "use client";
 
 import React, { useState } from "react";
 import Image from "next/image";
 
-// أقسام الموقع الأساسية
+// الأقسام الأساسية
 const CATEGORIES = [
   { id: "all", label: "الكل" },
   { id: "cars", label: "سيارات" },
   { id: "real_estate", label: "عقارات" },
   { id: "mobiles", label: "جوالات" },
   { id: "solar", label: "طاقة شمسية" },
-  { id: "jobs", label: "وظائف" },
-  { id: "internet", label: "نت وشبكات" },
   { id: "electronics", label: "الكترونيات" },
+  { id: "internet", label: "نت وشبكات" },
+  { id: "jobs", label: "وظائف" },
 ];
 
-// أمثلة إعلانات (تجريبية – مثل ملف HTML القديم)
+// أمثلة إعلانات تجريبية
 const SAMPLE_ADS = [
   {
     id: 1,
     category: "solar",
     title: "منظومة طاقة شمسية كاملة 5 كيلو",
     price: "1,050 دولار",
+    priceYER: "1,008,000 ريـال يمني",
+    priceSAR: "2,400 رس",
     city: "تعز",
     area: "الحوبان",
     ago: "منذ 7 أيام",
@@ -33,6 +36,8 @@ const SAMPLE_ADS = [
     category: "real_estate",
     title: "شقة للإيجار في صنعاء - 4 غرف وصالة",
     price: "250,000 ريال يمني",
+    priceYER: "250,000 ريـال يمني",
+    priceSAR: "630 رس",
     city: "صنعاء",
     area: "حدة",
     ago: "منذ 5 أيام",
@@ -41,14 +46,16 @@ const SAMPLE_ADS = [
   },
   {
     id: 3,
-    category: "ac",
-    title: "مكيفات جري سبلت 18 وحدة - حالة ممتازة",
-    price: "220,000 ريال يمني",
+    category: "cars",
+    title: "سيارة صالون بحالة ممتازة",
+    price: "8,500 دولار",
+    priceYER: "7,000,000 ريـال يمني تقريباً",
+    priceSAR: "32,000 رس",
     city: "صنعاء",
     area: "شارع تعز",
     ago: "منذ 3 أيام",
     image:
-      "https://images.pexels.com/photos/3967850/pexels-photo-3967850.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "https://images.pexels.com/photos/210019/pexels-photo-210019.jpeg?auto=compress&cs=tinysrgb&w=800",
   },
 ];
 
@@ -66,167 +73,153 @@ export default function HomePage() {
   });
 
   return (
-    <main className="min-h-screen bg-[#f5f7fb] text-gray-900" dir="rtl">
-      {/* الهيدر + الهيرو الأزرق (مثل ملف HTML) */}
-      <header className="bg-[#013a86] text-white pb-10 shadow-lg">
-        <div className="container-main">
+    <main className="min-h-screen bg-slate-100" dir="rtl">
+      {/* ===== الهيدر + الهيرو الأزرق ===== */}
+      <header className="bg-gradient-to-l from-[#0251c9] to-[#012f7a] text-white pb-5 shadow-lg">
+        <div className="container-main pt-4">
           {/* الشريط العلوي */}
-          <div className="flex items-center justify-between py-4">
-            {/* الشعار */}
+          <div className="flex items-center justify-between gap-4 mb-4">
+            {/* الشعار + نص */}
             <div className="flex items-center gap-3">
-              <div className="relative w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-md overflow-hidden">
-                {/* 👇 تأكد إنك حفظت الصورة في مجلد public باسم logo-souqyemen.png */}
+              <div className="relative w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-md overflow-hidden">
+                {/* تأكد أن الصورة موجودة في public/logo-souqyemen.png */}
                 <Image
                   src="/logo-souqyemen.png"
                   alt="شعار سوق اليمن"
-                  width={40}
-                  height={40}
-                  className="object-contain"
+                  fill
+                  sizes="48px"
+                  className="object-contain p-1"
                 />
               </div>
-              <div>
-                <h1 className="text-lg font-bold">سوق اليمن</h1>
-                <p className="text-xs text-blue-100">
-                  بيع وشراء كل شيء في اليمن
-                </p>
+              <div className="leading-tight">
+                <p className="text-[13px] text-blue-100">بيع وشراء كل شيء في اليمن</p>
+                <h1 className="text-xl font-extrabold tracking-tight">
+                  سوق اليمن
+                </h1>
               </div>
             </div>
 
-            {/* زر إضافة إعلان + واتساب / دخول (تصميم بسيط) */}
-            <div className="flex items-center gap-3">
-              <button className="hidden sm:flex items-center gap-2 bg-white text-[#013a86] px-4 py-2 rounded-full text-sm font-bold shadow hover:bg-blue-50 transition">
-                <span className="text-lg">+</span>
-                <span>أضف إعلانك</span>
+            {/* أزرار علويّة بسيطة */}
+            <div className="flex items-center gap-2">
+              <button className="hidden sm:inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 transition">
+                🔔
               </button>
-
-              <a
-                href="#whatsapp"
-                className="flex items-center gap-2 bg-[#25D366] px-4 py-2 rounded-full text-sm font-bold shadow hover:bg-[#1ebe57] transition"
-              >
-                <span>تواصل واتساب</span>
-              </a>
+              <button className="hidden sm:inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 transition">
+                🌙
+              </button>
+              <button className="inline-flex items-center rounded-full bg-amber-400 px-4 py-1.5 text-xs sm:text-sm font-bold text-slate-900 shadow hover:bg-amber-300 transition">
+                + أضف إعلانك
+              </button>
             </div>
           </div>
 
-          {/* محتوى الهيرو */}
-          <div className="grid md:grid-cols-[2fr,1.6fr] gap-8 items-center mt-4">
-            {/* النصوص */}
-            <div>
-              <p className="text-sm text-blue-100 mb-2">مرحبا بك في</p>
-              <h2 className="text-3xl md:text-4xl font-extrabold mb-4 leading-relaxed">
-                منصتك للإعلانات في كل محافظات اليمن
-              </h2>
-              <p className="text-sm md:text-base text-blue-100 mb-6 max-w-xl leading-relaxed">
-                اعرض سيارتك أو عقارك أو منتجاتك بكل سهولة، وخلي العملاء
-                يتواصلوا معك مباشرة عبر الواتساب أو الاتصال.
-              </p>
+          {/* مربع البحث */}
+          <div className="bg-white/95 rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 shadow-lg mb-3">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="ابحث في الإعلانات… سيارة، عقار، طاقة شمسية، جوال ..."
+              className="flex-1 bg-transparent border-none outline-none text-xs sm:text-sm text-gray-800 placeholder:text-gray-400 px-2"
+            />
+            <button className="bg-[#0251c9] text-white rounded-xl px-4 py-2 text-xs sm:text-sm font-bold">
+              بحث
+            </button>
+          </div>
 
-              {/* مربع البحث */}
-              <div className="bg-white rounded-full flex items-center gap-2 p-1.5 shadow-lg mb-4">
-                <button className="bg-[#013a86] text-white py-2 px-5 rounded-full text-sm font-bold">
-                  بحث
-                </button>
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="ابحث عن سيارة، بيت، جوال، طاقة شمسية..."
-                  className="flex-1 bg-transparent border-none outline-none px-3 text-sm text-gray-800 placeholder:text-gray-400"
-                />
-              </div>
-
-              {/* نقاط المميزات الثلاثية كما في HTML القديم */}
-              <div className="flex flex-wrap gap-3 text-xs md:text-sm text-blue-100">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-green-400 text-base">✔</span>
-                  <span>بدون عمولة على الإعلانات</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-green-400 text-base">✔</span>
-                  <span>تواصل مباشر بين البائع والمشتري</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-green-400 text-base">✔</span>
-                  <span>أقسام خاصة للعقارات والطاقة الشمسية</span>
-                </div>
-              </div>
-            </div>
-
-            {/* صورة جانبية (بدل صورة التكييف في HTML) */}
-            <div className="relative hidden md:block">
-              <div className="relative bg-white rounded-3xl p-4 shadow-2xl overflow-hidden">
-                <Image
-                  src="https://images.pexels.com/photos/3794355/pexels-photo-3794355.jpeg?auto=compress&cs=tinysrgb&w=1200"
-                  alt="سوق اليمن - مثال إعلان"
-                  width={800}
-                  height={600}
-                  className="rounded-2xl object-cover h-64 w-full"
-                />
-                <div className="absolute top-3 left-3 bg-white/90 rounded-full px-3 py-1 text-xs font-bold text-[#013a86] flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
-                  <span>إعلانات حقيقية من السوق اليمني</span>
-                </div>
-              </div>
-            </div>
+          {/* مميزات سريعة تحت البحث */}
+          <div className="flex flex-wrap gap-2 text-[11px] sm:text-xs text-blue-100 mb-2">
+            <span className="feature-pill">
+              <span className="dot" /> بدون عمولة على الإعلانات
+            </span>
+            <span className="feature-pill">
+              <span className="dot" /> تواصل مباشر بين البائع والمشتري
+            </span>
+            <span className="feature-pill">
+              <span className="dot" /> أقسام خاصة للعقارات والطاقة الشمسية
+            </span>
           </div>
         </div>
       </header>
 
-      {/* أقسام الموقع (الأزرار البيضاء/الصفراء) */}
-      <section className="border-b bg-white/80 backdrop-blur sticky top-0 z-30">
-        <div className="container-main py-3 flex flex-wrap gap-2 justify-center">
-          {CATEGORIES.map((c) => (
+      {/* ===== الأقسام (أيقونات) ===== */}
+      <section className="bg-white border-b shadow-sm">
+        <div className="container-main py-3 flex gap-2 overflow-x-auto no-scrollbar">
+          {CATEGORIES.map((cat) => (
             <button
-              key={c.id}
-              onClick={() => setActiveCategory(c.id)}
-              className={`chip ${
-                activeCategory === c.id ? "chip--primary" : "chip--ghost"
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className={`category-pill ${
+                activeCategory === cat.id ? "category-pill--active" : ""
               }`}
             >
-              {c.label}
+              {cat.label}
             </button>
           ))}
         </div>
       </section>
 
-      {/* مثال على الإعلانات (نفس فكرة الكروت في ملف HTML) */}
-      <section className="container-main my-8" id="sample-ads">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="section-title">مثال على إعلان في سوق اليمن</h3>
-          <span className="text-xs text-gray-500 hidden sm:block">
-            هذه فقط أمثلة تجريبية، قريبًا يتم ربط الموقع بقاعدة بيانات كاملة
-            للإعلانات.
+      {/* ===== كروت الإعلانات التجريبية ===== */}
+      <section className="container-main py-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="section-title text-base sm:text-lg">
+            مثال على إعلان في سوق اليمن
+          </h2>
+          <span className="text-[11px] sm:text-xs text-gray-500">
+            هذه فقط أمثلة تجريبية، قريباً يتم ربط الموقع بقاعدة بيانات حقيقية.
           </span>
         </div>
 
         <div className="ads-grid">
           {filteredAds.map((ad) => (
             <article key={ad.id} className="ad-card">
-              <div className="ad-card__image-wrapper">
+              <div className="relative h-44 sm:h-52 w-full overflow-hidden rounded-2xl">
                 <Image
                   src={ad.image}
                   alt={ad.title}
-                  width={600}
-                  height={400}
-                  className="ad-card__image"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                  className="object-cover"
                 />
+                <div className="absolute top-2 left-2 flex gap-1">
+                  <span className="badge-icon">⭐</span>
+                  <span className="badge-icon">👁</span>
+                </div>
+                <div className="absolute bottom-2 right-2 bg-black/55 text-white text-[11px] px-2 py-1 rounded-full flex items-center gap-1">
+                  <span className="inline-block w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                    📍
+                  </span>
+                  <span>
+                    {ad.city} - {ad.area}
+                  </span>
+                </div>
               </div>
 
-              <div className="ad-card__body">
-                <h4 className="ad-card__title">{ad.title}</h4>
-                <div className="ad-card__price">{ad.price}</div>
+              <div className="p-3 sm:p-4">
+                <h3 className="ad-title">{ad.title}</h3>
 
-                <div className="ad-card__meta">
-                  <span>{ad.city}</span>
-                  <span className="text-gray-400">•</span>
-                  <span>{ad.area}</span>
+                <div className="mt-1 text-xs text-gray-500">
+                  <span className="font-semibold text-[#0251c9] text-sm">
+                    {ad.priceSAR}
+                  </span>{" "}
+                  <span className="mx-1 text-gray-400">|</span>
+                  <span>{ad.price}</span>
                 </div>
 
-                <div className="ad-card__footer">
-                  <span className="ad-card__ago">{ad.ago}</span>
-                  <button className="ad-card__button">
-                    مشاهدة تفاصيل الإعلان
-                  </button>
+                <div className="mt-1 text-[11px] text-gray-400">
+                  {ad.priceYER}
+                </div>
+
+                <div className="mt-3 flex items-center justify-between text-[11px] text-gray-500">
+                  <span>{ad.ago}</span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-1 h-1 rounded-full bg-gray-400" /> 0 مشاهدة
+                  </span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button className="btn-secondary">اتصال 📞</button>
+                  <button className="btn-whatsapp">واتساب 💬</button>
                 </div>
               </div>
             </article>
@@ -234,64 +227,13 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* مميزات سوق اليمن */}
-      <section className="bg-white py-10 border-t border-b border-gray-100">
-        <div className="container-main">
-          <h3 className="section-title mb-6">ليش تختار سوق اليمن؟</h3>
-          <div className="grid md:grid-cols-3 gap-5 text-sm">
-            <div className="feature-box">
-              <h4>منصة يمنية 100%</h4>
-              <p>
-                موقع مخصص للسوق اليمني، عملة وأسعار وأقسام تناسب احتياجك في
-                اليمن.
-              </p>
-            </div>
-            <div className="feature-box">
-              <h4>سهولة التواصل</h4>
-              <p>
-                تواصل مباشر مع صاحب الإعلان عبر واتساب أو اتصال بدون أي وسيط.
-              </p>
-            </div>
-            <div className="feature-box">
-              <h4>تركيز على العقار والطاقة</h4>
-              <p>
-                أقسام قوية للعقارات، الأراضي، الشقق، وأنظمة الطاقة الشمسية
-                والبطاريات.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* خطوات إضافة إعلان */}
-      <section className="py-10">
-        <div className="container-main">
-          <h3 className="section-title mb-6">طريقة إضافة إعلان جديد</h3>
-          <div className="grid md:grid-cols-3 gap-5 text-sm">
-            <div className="step-box">
-              <span className="step-box__badge">1</span>
-              <h4>سجل دخولك أو أنشئ حساب</h4>
-              <p>استخدم بريدك الإلكتروني أو رقم جوالك لإنشاء حساب بسيط.</p>
-            </div>
-            <div className="step-box">
-              <span className="step-box__badge">2</span>
-              <h4>أضف تفاصيل الإعلان</h4>
-              <p>اختر القسم المناسب، أضف العنوان، السعر، والصور الواضحة.</p>
-            </div>
-            <div className="step-box">
-              <span className="step-box__badge">3</span>
-              <h4>انشر وتابع اتصالات العملاء</h4>
-              <p>الإعلان يظهر في الموقع، والعملاء يتواصلوا معك مباشرة.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* فووتر بسيط */}
-      <footer className="bg-[#012a5f] text-blue-100 py-6 mt-10">
-        <div className="container-main flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
-          <p>© {new Date().getFullYear()} سوق اليمن - بيع وشراء كل شيء في اليمن</p>
-          <p>هذه فقط نسخة أولية، وستتم إضافة تسجيل الدخول ولوحة التحكم لاحقًا.</p>
+      {/* ===== فووتر بسيط ===== */}
+      <footer className="bg-[#021a46] text-blue-100 mt-6 py-4 text-[11px] sm:text-xs">
+        <div className="container-main flex flex-col sm:flex-row items-center justify-between gap-2">
+          <p>
+            © {new Date().getFullYear()} سوق اليمن – بيع وشراء كل شيء في اليمن.
+          </p>
+          <p>هذه نسخة تجريبية، وسيتم إضافة تسجيل الدخول ولوحة التحكم لاحقاً.</p>
         </div>
       </footer>
     </main>
