@@ -1,22 +1,18 @@
-'use client'; // ضروري جداً لكي يعمل React في Next.js
+'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { firebase, auth, db, storage, googleProvider } from '../lib/firebase'; // استدعاء الفايربيس
+import React, { useState, useEffect, useRef } from 'react';
+import { firebase, auth, db, storage, googleProvider } from '../lib/firebase';
 
 // --- ثوابت وإعدادات ---
 const RATES = { USD_TO_YER: 1600, SAR_TO_YER: 420 };
 const YEMEN_CENTER = [15.5527, 48.5164]; 
 const DEFAULT_ZOOM = 6;
 const ADMIN_EMAIL = "mansouralbarout@gmail.com";
-const ADMIN_PHONE = "770991885";
-
-const ADMIN_EMAILS = [ADMIN_EMAIL].map(e => String(e || '').toLowerCase());
-const isAdminEmail = (email) => !!email && ADMIN_EMAILS.includes(String(email).toLowerCase());
 
 // --- Helper Functions ---
 const formatNumber = (num) => Math.round(num).toLocaleString('en-US');
 
-// --- Icons Component (Inline for simplicity) ---
+// --- Icons Component ---
 const Icons = {
     Map: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>,
     MapPin: (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
@@ -80,7 +76,6 @@ const LocationPicker = ({ onLocationSelect }) => {
     const markerRef = useRef(null);
 
     useEffect(() => {
-        // التأكد من العمل داخل المتصفح فقط
         if (typeof window === 'undefined' || !window.L || !mapRef.current) return;
 
         if (!mapInstance.current) {
@@ -98,17 +93,15 @@ const LocationPicker = ({ onLocationSelect }) => {
                     markerRef.current = window.L.marker([lat, lng], { draggable: true }).addTo(mapInstance.current);
                 }
 
-                // محاكاة جلب العنوان (Reverse Geocoding بسيط)
+                // محاكاة جلب العنوان
                 const osmUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=18/${lat}/${lng}`;
                 onLocationSelect({
                     coords: [lat, lng],
                     locationUrl: osmUrl,
-                    city: "موقع محدد" // يمكن تحسينه باستخدام API خارجي
+                    city: "موقع محدد"
                 });
             });
         }
-        
-        // إصلاح حجم الخريطة
         setTimeout(() => mapInstance.current && mapInstance.current.invalidateSize(), 500);
     }, []);
 
@@ -125,8 +118,6 @@ const MultiImageUploader = ({ maxFiles = 5, onImagesUpload }) => {
         if (!files.length) return;
 
         setBusy(true);
-        // هنا نقوم بمحاكاة الرفع لغرض العرض السريع، في الواقع يجب الربط مع Firebase Storage كما في الكود الأصلي
-        // سأضع كود الرفع الحقيقي المختصر:
         const newItems = [];
         
         for (const file of files) {
@@ -169,7 +160,7 @@ const MultiImageUploader = ({ maxFiles = 5, onImagesUpload }) => {
     );
 };
 
-// Map Component (uses window.L from layout)
+// --- Main Map Component ---
 const MainMap = ({ items }) => {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
@@ -262,26 +253,116 @@ const AuthModal = ({ isOpen, onClose, onLogin }) => {
     );
 };
 
-// --- LISTING CARD ---
-const ListingCard = ({ item }) => (
-    <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-gray-800 dark:border-gray-700">
-        <div className="h-48 bg-gray-200 relative">
-             <img src={item.image || 'https://via.placeholder.com/400'} alt={item.title} className="w-full h-full object-cover" />
-             {item.isAuction && <span className="absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded">مزاد</span>}
-        </div>
-        <div className="p-3">
-            <h3 className="font-bold truncate dark:text-gray-200">{item.title}</h3>
-            <p className="text-blue-600 font-bold">{formatNumber(item.price)} {item.currency}</p>
-            <p className="text-xs text-gray-500">{item.city} • {item.views || 0} مشاهدة</p>
-        </div>
-    </div>
-);
+// --- LISTING CARD (SMART VERSION) ---
+// هذا هو الجزء الذي يضمن عمل المزاد والعملات
+const ListingCard = ({ item }) => {
+    const [timeLeft, setTimeLeft] = useState('');
+    
+    // منطق تحويل العملات
+    const getPrices = () => {
+        let base = parseFloat(item.price) || 0;
+        let yer = 0;
+        if (item.currency === 'USD') yer = base * RATES.USD_TO_YER;
+        else if (item.currency === 'SAR') yer = base * RATES.SAR_TO_YER;
+        else yer = base;
+        
+        return {
+            YER: formatNumber(yer),
+            USD: formatNumber(yer / RATES.USD_TO_YER),
+            SAR: formatNumber(yer / RATES.SAR_TO_YER)
+        };
+    };
+
+    const prices = getPrices();
+
+    // منطق عداد المزاد
+    useEffect(() => {
+        if (item.isAuction && item.auctionEnd) {
+            const updateTimer = () => {
+                const now = new Date();
+                const end = new Date(item.auctionEnd);
+                const diff = end - now;
+                
+                if (diff <= 0) {
+                    setTimeLeft('انتهى المزاد');
+                    return;
+                }
+                
+                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                
+                setTimeLeft(`${days}يوم ${hours}س ${minutes}د`);
+            };
+            
+            updateTimer();
+            const interval = setInterval(updateTimer, 60000); // تحديث كل دقيقة
+            return () => clearInterval(interval);
+        }
+    }, [item.isAuction, item.auctionEnd]);
+
+    return (
+        <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-lg transition-all duration-300 group relative dark:bg-gray-800 dark:border-gray-700 cursor-pointer">
+            <div className="h-48 relative overflow-hidden bg-gray-200 dark:bg-gray-700">
+                <img 
+                    src={item.image || 'https://via.placeholder.com/400x300?text=No+Image'} 
+                    alt={item.title} 
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-110 transition duration-700"
+                />
+                
+                <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+                    {item.isAuction && (
+                        <div className="bg-red-600 text-white px-2 py-1 rounded text-[10px] font-bold shadow-sm flex items-center gap-1">
+                            <Icons.Hammer size={12} /> مزاد
+                        </div>
+                    )}
+                    <div className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded-lg flex items-center gap-1">
+                        <Icons.MapPin size={10} /> {item.city}
+                    </div>
+                </div>
+            </div>
+
+            <div className="p-4">
+                <h2 className="font-bold text-gray-800 text-base line-clamp-1 mb-2 dark:text-gray-200">{item.title}</h2>
+                
+                {item.isAuction && (
+                    <div className="mb-3 bg-red-50 border border-red-100 p-2 rounded-lg text-center dark:bg-red-900/20 dark:border-red-800/30">
+                        <span className="text-xs text-red-600 font-bold block mb-1 dark:text-red-400">
+                            {timeLeft === 'انتهى المزاد' ? 'انتهى' : 'ينتهي خلال:'}
+                        </span>
+                        <span className="text-sm font-black text-red-800 dark:text-red-300">
+                            {timeLeft}
+                        </span>
+                    </div>
+                )}
+
+                <div className="bg-blue-50 rounded-xl p-3 space-y-1 dark:bg-blue-900/20 dark:border dark:border-blue-800/30">
+                    <div className="text-blue-900 font-black text-lg dark:text-blue-300">
+                        {formatNumber(item.price)} <span className="text-xs">{item.currency}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-500 font-bold dark:text-gray-400 pt-1 border-t border-blue-200 dark:border-blue-800/30">
+                        <span>{prices.YER} ر.ي</span>
+                        <span>{prices.SAR} ر.س</span>
+                        <span>{prices.USD} $</span>
+                    </div>
+                </div>
+
+                <div className="flex justify-between text-xs text-gray-400 mt-3 dark:text-gray-500">
+                    <span className="flex items-center gap-1"><Icons.Eye size={14} /> {item.views || 0}</span>
+                    <span className="flex items-center gap-1"><Icons.Phone size={14} /> تواصل</span>
+                </div>
+            </div>
+        </article>
+    );
+};
 
 // --- نافذة إضافة إعلان ---
 const AddListingModal = ({ isOpen, onClose, user, onAdd }) => {
     const [formData, setFormData] = useState({
         title: '', price: '', currency: 'YER', city: '', category: 'cars', 
-        phone: '', description: '', images: [], coords: null, isAuction: false
+        phone: '', description: '', images: [], coords: null, isAuction: false,
+        auctionEnd: '' // Added missing field
     });
     const [loading, setLoading] = useState(false);
 
@@ -337,10 +418,17 @@ const AddListingModal = ({ isOpen, onClose, user, onAdd }) => {
                     
                     <textarea value={formData.description} onChange={e=>setFormData({...formData, description: e.target.value})} placeholder="الوصف..." className="w-full p-3 border rounded h-24 dark:bg-gray-700"></textarea>
 
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-2 bg-gray-50 p-2 rounded dark:bg-gray-700">
                         <input type="checkbox" checked={formData.isAuction} onChange={e=>setFormData({...formData, isAuction: e.target.checked})} />
-                        <label>تفعيل المزاد العلني</label>
+                        <label className="font-bold">تفعيل المزاد العلني</label>
                     </div>
+                    
+                    {formData.isAuction && (
+                        <div className="mb-2">
+                            <label className="text-xs">تاريخ انتهاء المزاد</label>
+                            <input type="datetime-local" value={formData.auctionEnd} onChange={e=>setFormData({...formData, auctionEnd: e.target.value})} className="w-full p-2 border rounded dark:bg-gray-700" />
+                        </div>
+                    )}
 
                     <MultiImageUploader onImagesUpload={(urls) => setFormData({...formData, images: urls})} />
                     
