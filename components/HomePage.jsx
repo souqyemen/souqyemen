@@ -49,7 +49,152 @@ const CATEGORIES = [
 
 const formatNumber = (num) => Math.round(num).toLocaleString('en-US');
 
-// --- دوال مساعدة ---
+// --- المكونات المساعدة الجديدة (Notification, Footer, DarkMode, Map) ---
+
+const NotificationSystem = ({ user }) => {
+    const [unread, setUnread] = useState(0);
+    const [show, setShow] = useState(false);
+    const [notifs, setNotifs] = useState([]);
+
+    useEffect(() => {
+        if (!user) return;
+        // مثال بسيط: الاستماع للإشعارات (يمكنك توسيعه لربطه بمجموعة notifications في فيربيس)
+        const q = query(collection(db, 'notifications'), where('userId', '==', user.uid), where('read', '==', false), limit(10));
+        const unsub = onSnapshot(q, (snap) => {
+            setNotifs(snap.docs.map(d => ({id: d.id, ...d.data()})));
+            setUnread(snap.size);
+        });
+        return () => unsub();
+    }, [user]);
+
+    return (
+        <div className="relative">
+            <button onClick={() => setShow(!show)} className="relative p-2 rounded-full hover:bg-white/20 transition">
+                <Icons.Bell size={24} className="text-white" />
+                {unread > 0 && <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">{unread}</span>}
+            </button>
+            {show && (
+                <div className="absolute left-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl z-50 overflow-hidden dark:bg-gray-800 dark:border dark:border-gray-700">
+                    <div className="p-3 border-b text-sm font-bold dark:border-gray-700">الإشعارات</div>
+                    <div className="max-h-60 overflow-y-auto">
+                        {notifs.length === 0 ? (
+                            <div className="p-4 text-center text-gray-500 text-sm">لا توجد إشعارات جديدة</div>
+                        ) : (
+                            notifs.map(n => (
+                                <div key={n.id} className="p-3 border-b hover:bg-gray-50 text-sm dark:border-gray-700 dark:hover:bg-gray-700">
+                                    {n.message}
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const DarkModeToggle = () => {
+    const [isDark, setIsDark] = useState(false);
+    useEffect(() => {
+        const isDarkStored = localStorage.getItem('darkMode') === 'true';
+        setIsDark(isDarkStored);
+        if (isDarkStored) document.documentElement.classList.add('dark');
+    }, []);
+
+    const toggle = () => {
+        const next = !isDark;
+        setIsDark(next);
+        localStorage.setItem('darkMode', next);
+        if (next) document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+    };
+
+    return (
+        <button onClick={toggle} className="p-2 rounded-full hover:bg-white/20 transition text-white">
+            {isDark ? <Icons.Sun size={24} /> : <Icons.Moon size={24} />}
+        </button>
+    );
+};
+
+const MainMap = ({ listings, onViewDetails }) => {
+    const mapRef = useRef(null);
+    const mapInstance = useRef(null);
+    const markersRef = useRef(null);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.L && mapRef.current) {
+            if (!mapInstance.current) {
+                mapInstance.current = window.L.map(mapRef.current).setView(YEMEN_CENTER, 6);
+                window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; سوق اليمن'
+                }).addTo(mapInstance.current);
+                
+                // استخدام MarkerCluster إذا كان متوفراً، وإلا LayerGroup عادي
+                if (window.L.markerClusterGroup) {
+                    markersRef.current = window.L.markerClusterGroup();
+                } else {
+                    markersRef.current = window.L.layerGroup();
+                }
+                mapInstance.current.addLayer(markersRef.current);
+            }
+
+            const markers = markersRef.current;
+            markers.clearLayers();
+
+            listings.forEach(item => {
+                if (item.coords && Array.isArray(item.coords)) {
+                    const marker = window.L.marker(item.coords);
+                    const popupContent = `
+                        <div class="text-center">
+                            <h3 class="font-bold text-sm mb-1">${item.title}</h3>
+                            <p class="text-blue-600 font-bold">${formatNumber(item.price)} ${item.currency}</p>
+                        </div>
+                    `;
+                    marker.bindPopup(popupContent);
+                    marker.on('popupopen', () => {
+                        // يمكن إضافة زر تفاصيل هنا لاحقاً
+                    });
+                    markers.addLayer(marker);
+                }
+            });
+        }
+    }, [listings]);
+
+    return <div ref={mapRef} className="w-full h-[calc(100vh-200px)] rounded-xl z-0" />;
+};
+
+const Footer = ({ listings }) => {
+    const totalViews = listings.reduce((acc, cur) => acc + (cur.views || 0), 0);
+    const totalLikes = listings.reduce((acc, cur) => acc + (cur.likes || 0), 0);
+    const activeAuctions = listings.filter(l => l.isAuction).length;
+
+    return (
+        <footer className="mt-10 bg-white border-t py-8 dark:bg-gray-800 dark:border-gray-700">
+            <div className="container mx-auto px-4">
+                <div className="grid grid-cols-3 gap-4 mb-6 text-center">
+                    <div className="p-4 bg-blue-50 rounded-xl dark:bg-blue-900/20">
+                        <div className="text-2xl font-black text-blue-600 dark:text-blue-400">{listings.length}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">إعلان نشط</div>
+                    </div>
+                    <div className="p-4 bg-purple-50 rounded-xl dark:bg-purple-900/20">
+                        <div className="text-2xl font-black text-purple-600 dark:text-purple-400">{formatNumber(totalViews)}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">مشاهدة</div>
+                    </div>
+                    <div className="p-4 bg-red-50 rounded-xl dark:bg-red-900/20">
+                        <div className="text-2xl font-black text-red-600 dark:text-red-400">{activeAuctions}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">مزاد جاري</div>
+                    </div>
+                </div>
+                <div className="text-center text-gray-400 text-sm">
+                    <p>&copy; {new Date().getFullYear()} سوق اليمن. جميع الحقوق محفوظة.</p>
+                    <p className="mt-1">رقم المدير: <span className="font-mono">{ADMIN_PHONE}</span></p>
+                </div>
+            </div>
+        </footer>
+    );
+};
+
+// --- دوال مساعدة (Map & Upload) ---
 
 const LocationPicker = ({ onLocationSelect, initialCoords }) => {
     const mapRef = useRef(null);
@@ -454,6 +599,7 @@ export default function HomePage() {
     const [search, setSearch] = useState('');
     const [favorites, setFavorites] = useState(new Set());
     const [isAdmin, setIsAdmin] = useState(false);
+    const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'map'
     
     // State للمودالات الجديدة
     const [selectedListingId, setSelectedListingId] = useState(null);
@@ -587,7 +733,19 @@ export default function HomePage() {
                             <div className="bg-white text-blue-800 p-2 rounded-lg font-black text-xl shadow cursor-pointer">ي</div>
                             <h1 className="text-xl font-bold cursor-pointer">سوق اليمن</h1>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
+                             {/* المكونات الجديدة في الهيدر */}
+                             <NotificationSystem user={user} />
+                             <DarkModeToggle />
+                             
+                             <button 
+                                onClick={() => setViewMode(viewMode === 'grid' ? 'map' : 'grid')}
+                                className="p-2 rounded-full hover:bg-white/20 transition text-white"
+                                title={viewMode === 'grid' ? 'عرض الخريطة' : 'عرض القائمة'}
+                             >
+                                {viewMode === 'grid' ? <Icons.Map size={24} /> : <Icons.List size={24} />}
+                             </button>
+
                              {!user ? (
                                 <button onClick={() => setModals({...modals, auth: true})} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full text-sm font-bold transition">دخول</button>
                              ) : (
@@ -606,35 +764,45 @@ export default function HomePage() {
             </header>
 
             {/* Categories */}
-            <div className="container mx-auto px-4 mt-4 overflow-x-auto whitespace-nowrap hide-scrollbar py-2">
-                <div className="flex gap-3">
-                    {CATEGORIES.map(cat => (
-                        <button key={cat.id} onClick={() => setActiveCat(cat.id)} className={`flex flex-col items-center gap-1 min-w-[64px] transition ${activeCat === cat.id ? 'scale-110 opacity-100' : 'opacity-70 hover:opacity-100'}`}>
-                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border ${activeCat === cat.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-100'}`}><cat.icon size={24} /></div>
-                            <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400">{cat.name}</span>
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Listings */}
-            <main className="container mx-auto px-4 mt-6">
-                {filtered.length === 0 ? <div className="text-center py-20 text-gray-400">لا توجد إعلانات</div> : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                        {filtered.map(item => (
-                            <ListingCard 
-                                key={item.id} 
-                                item={item} 
-                                currentUser={user}
-                                isFavorited={favorites.has(item.id)}
-                                onToggleFavorite={toggleFavorite}
-                                onViewDetails={(it) => setSelectedListingId(it.id)}
-                                onChat={handleChat}
-                                onDelete={handleDeleteListing}
-                                onEdit={handleEditListing}
-                            />
+            {viewMode === 'grid' && (
+                <div className="container mx-auto px-4 mt-4 overflow-x-auto whitespace-nowrap hide-scrollbar py-2">
+                    <div className="flex gap-3">
+                        {CATEGORIES.map(cat => (
+                            <button key={cat.id} onClick={() => setActiveCat(cat.id)} className={`flex flex-col items-center gap-1 min-w-[64px] transition ${activeCat === cat.id ? 'scale-110 opacity-100' : 'opacity-70 hover:opacity-100'}`}>
+                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border ${activeCat === cat.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-100'}`}><cat.icon size={24} /></div>
+                                <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400">{cat.name}</span>
+                            </button>
                         ))}
                     </div>
+                </div>
+            )}
+
+            {/* Main Content: Grid or Map */}
+            <main className="container mx-auto px-4 mt-6">
+                {viewMode === 'map' ? (
+                    <MainMap listings={filtered} onViewDetails={(it) => setSelectedListingId(it.id)} />
+                ) : (
+                    <>
+                        {filtered.length === 0 ? <div className="text-center py-20 text-gray-400">لا توجد إعلانات</div> : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                                {filtered.map(item => (
+                                    <ListingCard 
+                                        key={item.id} 
+                                        item={item} 
+                                        currentUser={user}
+                                        isFavorited={favorites.has(item.id)}
+                                        onToggleFavorite={toggleFavorite}
+                                        onViewDetails={(it) => setSelectedListingId(it.id)}
+                                        onChat={handleChat}
+                                        onDelete={handleDeleteListing}
+                                        onEdit={handleEditListing}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                        {/* Footer يظهر فقط في وضع الشبكة */}
+                        <Footer listings={listings} />
+                    </>
                 )}
             </main>
 
