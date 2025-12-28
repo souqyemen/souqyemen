@@ -48,7 +48,7 @@ const CATEGORIES = [
     { id: 'others', name: 'أخرى', icon: Icons.Grid, color: '#94a3b8' },
 ];
 
-// بيانات الإعلانات الافتراضية (من الكود القديم)
+// بيانات الإعلانات الافتراضية
 const SAMPLE_LISTINGS = [
     {
         title: 'تويوتا كامري 2022 موديل حديث',
@@ -106,7 +106,7 @@ const SAMPLE_LISTINGS = [
 
 const formatNumber = (num) => Math.round(num).toLocaleString('en-US');
 
-// --- المكونات المساعدة الجديدة (Notification, Footer, DarkMode, Map) ---
+// --- المكونات المساعدة ---
 
 const NotificationSystem = ({ user }) => {
     const [unread, setUnread] = useState(0);
@@ -115,7 +115,6 @@ const NotificationSystem = ({ user }) => {
 
     useEffect(() => {
         if (!user) return;
-        // مثال بسيط: الاستماع للإشعارات (يمكنك توسيعه لربطه بمجموعة notifications في فيربيس)
         const q = query(collection(db, 'notifications'), where('userId', '==', user.uid), where('read', '==', false), limit(10));
         const unsub = onSnapshot(q, (snap) => {
             setNotifs(snap.docs.map(d => ({id: d.id, ...d.data()})));
@@ -186,7 +185,6 @@ const MainMap = ({ listings, onViewDetails }) => {
                     attribution: '&copy; سوق اليمن'
                 }).addTo(mapInstance.current);
                 
-                // استخدام MarkerCluster إذا كان متوفراً، وإلا LayerGroup عادي
                 if (window.L.markerClusterGroup) {
                     markersRef.current = window.L.markerClusterGroup();
                 } else {
@@ -222,7 +220,6 @@ const MainMap = ({ listings, onViewDetails }) => {
 
 const Footer = ({ listings }) => {
     const totalViews = listings.reduce((acc, cur) => acc + (cur.views || 0), 0);
-    const totalLikes = listings.reduce((acc, cur) => acc + (cur.likes || 0), 0);
     const activeAuctions = listings.filter(l => l.isAuction).length;
 
     return (
@@ -261,7 +258,6 @@ const LocationPicker = ({ onLocationSelect, initialCoords }) => {
     useEffect(() => {
         if (typeof window !== 'undefined' && window.L && mapRef.current && !mapInstance.current) {
             try {
-                // استخدام الإحداثيات الأولية إذا وجدت
                 const center = initialCoords || YEMEN_CENTER;
                 const zoom = initialCoords ? 12 : DEFAULT_ZOOM;
                 
@@ -300,7 +296,6 @@ const MultiImageUploader = ({ maxFiles = 5, onImagesUpload, initialImages = [] }
     const [items, setItems] = useState([]);
     const [busy, setBusy] = useState(false);
 
-    // تحميل الصور الأولية عند التعديل
     useEffect(() => {
         if (initialImages.length > 0 && items.length === 0) {
             setItems(initialImages.map(url => ({ preview: url, url, progress: 100 })));
@@ -339,7 +334,6 @@ const MultiImageUploader = ({ maxFiles = 5, onImagesUpload, initialImages = [] }
         setBusy(false);
     };
 
-    // تحديث الأب عند اكتمال الرفع أو الحذف
     useEffect(() => {
         const urls = items.map(x => x.url).filter(Boolean);
         onImagesUpload(urls);
@@ -373,7 +367,7 @@ const MultiImageUploader = ({ maxFiles = 5, onImagesUpload, initialImages = [] }
     );
 };
 
-// --- بطاقة الإعلان (محدثة مع المزاد والحذف) ---
+// --- بطاقة الإعلان ---
 
 const ListingCard = ({ item, currentUser, onViewDetails, isFavorited, onToggleFavorite, onChat, onDelete, onEdit }) => {
     const [timeLeft, setTimeLeft] = useState('');
@@ -405,14 +399,12 @@ const ListingCard = ({ item, currentUser, onViewDetails, isFavorited, onToggleFa
         
         setSubmittingBid(true);
         try {
-            // تحديث السعر في الإعلان
             await updateDoc(doc(db, 'listings', item.id), {
                 price: amount,
                 lastBidderId: currentUser.uid,
                 lastBidderName: currentUser.displayName || currentUser.email,
                 bidsCount: increment(1)
             });
-            // إضافة سجل للمزايدة (اختياري للتوسع مستقبلاً)
             await addDoc(collection(db, 'listings', item.id, 'bids'), {
                 amount,
                 userId: currentUser.uid,
@@ -446,7 +438,6 @@ const ListingCard = ({ item, currentUser, onViewDetails, isFavorited, onToggleFa
                     {item.isAuction && <span className="text-xs text-red-500 font-normal">{timeLeft}</span>}
                 </div>
 
-                {/* قسم المزايدة */}
                 {item.isAuction && timeLeft !== 'منتهي' && (
                     <div className="mb-3">
                         {!showBidInput ? (
@@ -473,7 +464,6 @@ const ListingCard = ({ item, currentUser, onViewDetails, isFavorited, onToggleFa
                 <div className="flex justify-between items-center mt-2 pt-2 border-t dark:border-gray-700">
                     <span className="text-xs text-gray-400 flex gap-1"><Icons.MapPin size={12}/> {item.city}</span>
                     <div className="flex gap-2">
-                        {/* أزرار المالك */}
                         {isOwner ? (
                             <>
                                 <button onClick={(e) => {e.stopPropagation(); onEdit(item)}} className="text-yellow-600 hover:bg-yellow-50 p-2 rounded-full transition">
@@ -505,18 +495,15 @@ const AddListingModal = ({ isOpen, onClose, user, onAdd, editItem }) => {
     });
     const [submitting, setSubmitting] = useState(false);
 
-    // تعبئة البيانات عند التعديل
     useEffect(() => {
         if (editItem) {
             setData({
                 ...editItem,
                 price: editItem.price || '',
-                // تأكد من وجود الحقول حتى لو كانت فارغة
                 description: editItem.description || '',
                 phone: editItem.phone || ''
             });
         } else {
-            // تصفير النموذج عند الإضافة الجديدة
             setData({
                 title: '', price: '', currency: 'YER', city: '', category: 'cars', 
                 phone: '', isWhatsapp: true, description: '', coords: null, image: '', images: [],
@@ -529,7 +516,7 @@ const AddListingModal = ({ isOpen, onClose, user, onAdd, editItem }) => {
         if (!data.title || !data.price || !data.phone) return alert("يرجى ملء البيانات الضرورية");
         setSubmitting(true);
         try { 
-            await onAdd(data, editItem?.id); // تمرير المعرف إذا كان تعديلاً
+            await onAdd(data, editItem?.id);
             onClose(); 
         } 
         catch (e) { alert(e.message); } 
@@ -656,16 +643,13 @@ export default function HomePage() {
     const [search, setSearch] = useState('');
     const [favorites, setFavorites] = useState(new Set());
     const [isAdmin, setIsAdmin] = useState(false);
-    const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'map'
+    const [viewMode, setViewMode] = useState('grid'); 
     
     // State للمودالات الجديدة
     const [selectedListingId, setSelectedListingId] = useState(null);
     const [chatListing, setChatListing] = useState(null);
-    
-    // State للتعديل
     const [editItem, setEditItem] = useState(null);
 
-    // دالة إضافة الإعلانات الافتراضية
     const addSampleListings = async () => {
         const batch = writeBatch(db);
         SAMPLE_LISTINGS.forEach((item) => {
@@ -684,7 +668,6 @@ export default function HomePage() {
         alert('تم إضافة الإعلانات الافتراضية بنجاح');
     };
 
-    // مراقبة المستخدم
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, async (u) => {
             setUser(u);
@@ -702,7 +685,6 @@ export default function HomePage() {
         return () => unsub();
     }, []);
 
-    // جلب الإعلانات
     useEffect(() => {
         const q = query(collection(db, 'listings'), orderBy('createdAt', 'desc'));
         const unsub = onSnapshot(q, (snap) => {
@@ -713,7 +695,6 @@ export default function HomePage() {
         return () => unsub();
     }, []);
 
-    // الفلترة
     useEffect(() => {
         let res = listings;
         if (activeCat !== 'all') res = res.filter(i => i.category === activeCat);
@@ -724,7 +705,6 @@ export default function HomePage() {
         setFiltered(res);
     }, [activeCat, search, listings]);
 
-    // الإجراءات
     const handleAddOrUpdateListing = async (data, id = null) => {
         if (!user) return;
         
@@ -742,11 +722,9 @@ export default function HomePage() {
         };
 
         if (id) {
-            // تحديث إعلان موجود
             await updateDoc(doc(db, 'listings', id), adData);
             alert('تم التعديل بنجاح!');
         } else {
-            // إضافة جديد
             adData.createdAt = serverTimestamp();
             adData.views = 0;
             adData.likes = 0;
@@ -793,7 +771,6 @@ export default function HomePage() {
 
     const selectedListing = listings.find(l => l.id === selectedListingId);
 
-    // دالة لإغلاق مودال الإضافة وتصفير حالة التعديل
     const closeAddModal = () => {
         setModals({...modals, add: false});
         setEditItem(null);
@@ -810,7 +787,6 @@ export default function HomePage() {
                             <h1 className="text-xl font-bold cursor-pointer">سوق اليمن</h1>
                         </div>
                         <div className="flex gap-2 items-center">
-                             {/* المكونات الجديدة في الهيدر */}
                              <NotificationSystem user={user} />
                              <DarkModeToggle />
                              
@@ -885,7 +861,7 @@ export default function HomePage() {
                                 ))}
                             </div>
                         )}
-                        {/* Footer يظهر فقط في وضع الشبكة */}
+                        {/* Footer */}
                         <Footer listings={listings} />
                     </>
                 )}
@@ -901,7 +877,6 @@ export default function HomePage() {
             />
             <AuthModal isOpen={modals.auth} onClose={() => setModals({...modals, auth: false})} onLogin={() => alert('تم الدخول!')} />
             
-            {/* تفاصيل الإعلان */}
             <ListingDetailsModal 
                 item={selectedListing} 
                 isOpen={!!selectedListingId} 
@@ -911,7 +886,6 @@ export default function HomePage() {
                 onRegisterView={async (id) => await updateDoc(doc(db, 'listings', id), { views: increment(1) })}
             />
 
-            {/* نظام الدردشة */}
             {chatListing && (
                 <ChatSystem 
                     currentUser={user}
@@ -920,7 +894,6 @@ export default function HomePage() {
                 />
             )}
 
-            {/* لوحة المدير */}
             {isAdmin && (
                 <AdminPanel 
                     user={user}
