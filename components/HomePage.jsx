@@ -5,7 +5,7 @@ import { auth, db, storage, googleProvider } from '../lib/firebaseClient';
 import { 
   collection, addDoc, updateDoc, deleteDoc, doc, 
   onSnapshot, query, where, orderBy, limit, 
-  serverTimestamp, increment, getDoc, getDocs, setDoc 
+  serverTimestamp, increment, getDoc, getDocs, setDoc, writeBatch 
 } from 'firebase/firestore';
 import { 
   signInWithPopup, signInWithEmailAndPassword, 
@@ -14,7 +14,7 @@ import {
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Icons } from './Icons';
 
-// استيراد المكونات الفرعية التي أنشأناها سابقاً
+// استيراد المكونات الفرعية
 import ListingDetailsModal from './ListingDetailsModal';
 import ChatSystem from './ChatSystem';
 import AdminPanel from './AdminPanel';
@@ -49,9 +49,9 @@ const CATEGORIES = [
 
 const formatNumber = (num) => Math.round(num).toLocaleString('en-US');
 
-// --- دوال مساعدة (Map & Upload) ---
+// --- دوال مساعدة ---
 
-const LocationPicker = ({ onLocationSelect }) => {
+const LocationPicker = ({ onLocationSelect, initialCoords }) => {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
     const markerRef = useRef(null);
@@ -59,8 +59,16 @@ const LocationPicker = ({ onLocationSelect }) => {
     useEffect(() => {
         if (typeof window !== 'undefined' && window.L && mapRef.current && !mapInstance.current) {
             try {
-                mapInstance.current = window.L.map(mapRef.current).setView(YEMEN_CENTER, DEFAULT_ZOOM);
+                // استخدام الإحداثيات الأولية إذا وجدت
+                const center = initialCoords || YEMEN_CENTER;
+                const zoom = initialCoords ? 12 : DEFAULT_ZOOM;
+                
+                mapInstance.current = window.L.map(mapRef.current).setView(center, zoom);
                 window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; سوق اليمن' }).addTo(mapInstance.current);
+
+                if (initialCoords) {
+                    markerRef.current = window.L.marker(initialCoords, { draggable: true }).addTo(mapInstance.current);
+                }
 
                 mapInstance.current.on('click', async (e) => {
                     const { lat, lng } = e.latlng;
@@ -73,7 +81,7 @@ const LocationPicker = ({ onLocationSelect }) => {
                         const data = await res.json();
                         onLocationSelect({ 
                             coords: [lat, lng], 
-                            city: data.address?.city || "", 
+                            city: data.address?.city || data.address?.town || "", 
                             locationText: data.display_name,
                             locationUrl: `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}`
                         });
@@ -81,14 +89,21 @@ const LocationPicker = ({ onLocationSelect }) => {
                 });
             } catch (err) { console.error("Map init error:", err); }
         }
-    }, [onLocationSelect]);
+    }, [onLocationSelect, initialCoords]);
 
     return <div ref={mapRef} className="w-full h-64 rounded-xl border border-gray-300 z-10 dark:border-gray-600" />;
 };
 
-const MultiImageUploader = ({ maxFiles = 5, onImagesUpload }) => {
+const MultiImageUploader = ({ maxFiles = 5, onImagesUpload, initialImages = [] }) => {
     const [items, setItems] = useState([]);
     const [busy, setBusy] = useState(false);
+
+    // تحميل الصور الأولية عند التعديل
+    useEffect(() => {
+        if (initialImages.length > 0 && items.length === 0) {
+            setItems(initialImages.map(url => ({ preview: url, url, progress: 100 })));
+        }
+    }, [initialImages]);
 
     const uploadOne = (file, idx) => new Promise((resolve, reject) => {
         const fileName = `listings/img_${Date.now()}_${idx}_${file.name.replace(/\W/g,'_')}`;
@@ -113,35 +128,41 @@ const MultiImageUploader = ({ maxFiles = 5, onImagesUpload }) => {
         setItems([...items, ...newItems]);
         setBusy(true);
 
-        const uploadedUrls = [];
         for (let i = 0; i < newItems.length; i++) {
             try {
                 const url = await uploadOne(newItems[i].file, baseIdx + i);
                 setItems(prev => { const n=[...prev]; n[baseIdx+i].url=url; return n; });
-                uploadedUrls.push(url);
             } catch (e) { console.error(e); }
         }
         setBusy(false);
     };
 
+    // تحديث الأب عند اكتمال الرفع أو الحذف
     useEffect(() => {
         const urls = items.map(x => x.url).filter(Boolean);
-        if (urls.length > 0) onImagesUpload(urls);
-    }, [items, onImagesUpload]);
+        onImagesUpload(urls);
+    }, [items]);
+
+    const removeImage = (idx) => {
+        setItems(prev => prev.filter((_, i) => i !== idx));
+    };
 
     return (
         <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center dark:border-gray-600">
              <div className="flex gap-2 overflow-x-auto mb-2">
                 {items.map((it, idx) => (
-                    <div key={idx} className="w-20 h-20 relative shrink-0">
+                    <div key={idx} className="w-20 h-20 relative shrink-0 group">
                         <img src={it.preview} className="w-full h-full object-cover rounded" alt="Preview" />
                         {!it.url && <div className="absolute inset-0 bg-black/50 text-white text-xs flex items-center justify-center">{it.progress}%</div>}
+                        <button onClick={() => removeImage(idx)} className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-bl-lg opacity-0 group-hover:opacity-100 transition">
+                            <Icons.X size={12} />
+                        </button>
                     </div>
                 ))}
             </div>
             {items.length < maxFiles && !busy && (
                 <label className="cursor-pointer text-blue-600 font-bold">
-                    <Icons.Camera className="mx-auto mb-1"/> إضافة صور
+                    <Icons.Camera className="mx-auto mb-1"/> {items.length > 0 ? 'إضافة المزيد' : 'إضافة صور'}
                     <input type="file" accept="image/*" multiple onChange={handleSelect} className="hidden" />
                 </label>
             )}
@@ -150,10 +171,15 @@ const MultiImageUploader = ({ maxFiles = 5, onImagesUpload }) => {
     );
 };
 
-// --- المكونات الداخلية ---
+// --- بطاقة الإعلان (محدثة مع المزاد والحذف) ---
 
-const ListingCard = ({ item, currentUser, onViewDetails, isFavorited, onToggleFavorite, onChat }) => {
+const ListingCard = ({ item, currentUser, onViewDetails, isFavorited, onToggleFavorite, onChat, onDelete, onEdit }) => {
     const [timeLeft, setTimeLeft] = useState('');
+    const [bidAmount, setBidAmount] = useState('');
+    const [showBidInput, setShowBidInput] = useState(false);
+    const [submittingBid, setSubmittingBid] = useState(false);
+
+    const isOwner = currentUser && item.userId === currentUser.uid;
 
     useEffect(() => {
         if (item.isAuction && item.auctionEnd) {
@@ -170,6 +196,37 @@ const ListingCard = ({ item, currentUser, onViewDetails, isFavorited, onToggleFa
         }
     }, [item]);
 
+    const handleBid = async () => {
+        if (!currentUser) return alert("يجب تسجيل الدخول للمزايدة");
+        const amount = parseFloat(bidAmount);
+        if (!amount || amount <= item.price) return alert("يجب أن يكون المبلغ أعلى من السعر الحالي");
+        
+        setSubmittingBid(true);
+        try {
+            // تحديث السعر في الإعلان
+            await updateDoc(doc(db, 'listings', item.id), {
+                price: amount,
+                lastBidderId: currentUser.uid,
+                lastBidderName: currentUser.displayName || currentUser.email,
+                bidsCount: increment(1)
+            });
+            // إضافة سجل للمزايدة (اختياري للتوسع مستقبلاً)
+            await addDoc(collection(db, 'listings', item.id, 'bids'), {
+                amount,
+                userId: currentUser.uid,
+                userName: currentUser.displayName || currentUser.email,
+                timestamp: serverTimestamp()
+            });
+            alert("تمت المزايدة بنجاح!");
+            setShowBidInput(false);
+            setBidAmount('');
+        } catch (e) {
+            alert(e.message);
+        } finally {
+            setSubmittingBid(false);
+        }
+    };
+
     return (
         <article className="bg-white rounded-2xl overflow-hidden shadow-sm border hover:shadow-lg transition group relative dark:bg-gray-800 dark:border-gray-700">
             <div className="h-48 relative overflow-hidden bg-gray-200 cursor-pointer" onClick={() => onViewDetails(item)}>
@@ -178,6 +235,7 @@ const ListingCard = ({ item, currentUser, onViewDetails, isFavorited, onToggleFa
                     {isFavorited ? <Icons.StarFilled size={16}/> : <Icons.Star size={16}/>}
                 </button>
                 {item.isAuction && <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded text-[10px] font-bold flex gap-1"><Icons.Hammer size={12}/> مزاد</div>}
+                {isOwner && <div className="absolute bottom-2 right-2 bg-blue-600 text-white px-2 py-1 rounded text-[10px] font-bold">إعلاني</div>}
             </div>
             <div className="p-4">
                 <h2 className="font-bold text-gray-800 line-clamp-1 mb-2 dark:text-gray-200">{item.title}</h2>
@@ -185,18 +243,59 @@ const ListingCard = ({ item, currentUser, onViewDetails, isFavorited, onToggleFa
                     <span>{formatNumber(item.price)} <span className="text-xs">{item.currency}</span></span>
                     {item.isAuction && <span className="text-xs text-red-500 font-normal">{timeLeft}</span>}
                 </div>
-                <div className="flex justify-between items-center mt-3 pt-3 border-t dark:border-gray-700">
+
+                {/* قسم المزايدة */}
+                {item.isAuction && timeLeft !== 'منتهي' && (
+                    <div className="mb-3">
+                        {!showBidInput ? (
+                            <button onClick={() => setShowBidInput(true)} className="w-full bg-red-50 text-red-600 py-1.5 rounded-lg text-sm font-bold border border-red-100 hover:bg-red-100">
+                                <Icons.Hammer size={14} className="inline ml-1"/> زايد الآن
+                            </button>
+                        ) : (
+                            <div className="flex gap-2">
+                                <input 
+                                    type="number" 
+                                    placeholder="السعر" 
+                                    className="w-full p-1.5 border rounded-lg text-sm"
+                                    value={bidAmount}
+                                    onChange={e => setBidAmount(e.target.value)}
+                                />
+                                <button disabled={submittingBid} onClick={handleBid} className="bg-red-600 text-white px-3 rounded-lg text-sm font-bold">
+                                    {submittingBid ? '...' : 'تم'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                <div className="flex justify-between items-center mt-2 pt-2 border-t dark:border-gray-700">
                     <span className="text-xs text-gray-400 flex gap-1"><Icons.MapPin size={12}/> {item.city}</span>
-                    <button onClick={(e) => {e.stopPropagation(); onChat(item);}} className="text-blue-600 hover:bg-blue-50 p-2 rounded-full transition dark:hover:bg-gray-700">
-                        <Icons.Message size={18} />
-                    </button>
+                    <div className="flex gap-2">
+                        {/* أزرار المالك */}
+                        {isOwner ? (
+                            <>
+                                <button onClick={(e) => {e.stopPropagation(); onEdit(item)}} className="text-yellow-600 hover:bg-yellow-50 p-2 rounded-full transition">
+                                    <Icons.Edit size={16} />
+                                </button>
+                                <button onClick={(e) => {e.stopPropagation(); onDelete(item.id)}} className="text-red-600 hover:bg-red-50 p-2 rounded-full transition">
+                                    <Icons.Trash size={16} />
+                                </button>
+                            </>
+                        ) : (
+                            <button onClick={(e) => {e.stopPropagation(); onChat(item);}} className="text-blue-600 hover:bg-blue-50 p-2 rounded-full transition dark:hover:bg-gray-700">
+                                <Icons.Message size={18} />
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
         </article>
     );
 };
 
-const AddListingModal = ({ isOpen, onClose, user, onAdd }) => {
+// --- نافذة الإضافة / التعديل ---
+
+const AddListingModal = ({ isOpen, onClose, user, onAdd, editItem }) => {
     const [data, setData] = useState({
         title: '', price: '', currency: 'YER', city: '', category: 'cars', 
         phone: '', isWhatsapp: true, description: '', coords: null, image: '', images: [],
@@ -204,12 +303,46 @@ const AddListingModal = ({ isOpen, onClose, user, onAdd }) => {
     });
     const [submitting, setSubmitting] = useState(false);
 
+    // تعبئة البيانات عند التعديل
+    useEffect(() => {
+        if (editItem) {
+            setData({
+                ...editItem,
+                price: editItem.price || '',
+                // تأكد من وجود الحقول حتى لو كانت فارغة
+                description: editItem.description || '',
+                phone: editItem.phone || ''
+            });
+        } else {
+            // تصفير النموذج عند الإضافة الجديدة
+            setData({
+                title: '', price: '', currency: 'YER', city: '', category: 'cars', 
+                phone: '', isWhatsapp: true, description: '', coords: null, image: '', images: [],
+                isAuction: false, auctionEnd: ''
+            });
+        }
+    }, [editItem, isOpen]);
+
     const handleSubmit = async () => {
         if (!data.title || !data.price || !data.phone) return alert("يرجى ملء البيانات الضرورية");
         setSubmitting(true);
-        try { await onAdd(data); onClose(); } 
+        try { 
+            await onAdd(data, editItem?.id); // تمرير المعرف إذا كان تعديلاً
+            onClose(); 
+        } 
         catch (e) { alert(e.message); } 
         finally { setSubmitting(false); }
+    };
+
+    const handleAutoLocation = () => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                setData(prev => ({ ...prev, coords: [pos.coords.latitude, pos.coords.longitude] }));
+                alert("تم تحديد موقعك بنجاح!");
+            });
+        } else {
+            alert("المتصفح لا يدعم تحديد الموقع");
+        }
     };
 
     if (!isOpen) return null;
@@ -217,7 +350,7 @@ const AddListingModal = ({ isOpen, onClose, user, onAdd }) => {
         <div className="fixed inset-0 bg-black/60 z-[2000] flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
             <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 dark:bg-gray-800 dark:text-gray-100" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between mb-4">
-                    <h2 className="text-xl font-bold">إضافة إعلان</h2>
+                    <h2 className="text-xl font-bold">{editItem ? 'تعديل الإعلان' : 'إضافة إعلان'}</h2>
                     <button onClick={onClose}><Icons.X/></button>
                 </div>
                 <div className="space-y-4">
@@ -237,16 +370,33 @@ const AddListingModal = ({ isOpen, onClose, user, onAdd }) => {
                             {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                     </div>
-                    <MultiImageUploader onImagesUpload={(urls) => setData(prev => ({...prev, images: urls, image: urls[0]}))} />
-                    <LocationPicker onLocationSelect={(loc) => setData(prev => ({...prev, coords: loc.coords, city: loc.city || prev.city, locationText: loc.locationText, locationUrl: loc.locationUrl }))} />
+                    
+                    <MultiImageUploader 
+                        initialImages={data.images}
+                        onImagesUpload={(urls) => setData(prev => ({...prev, images: urls, image: urls[0]}))} 
+                    />
+                    
+                    <div className="flex justify-between items-center">
+                        <label className="text-sm font-bold">الموقع:</label>
+                        <button onClick={handleAutoLocation} className="text-blue-600 text-xs font-bold">📍 تحديد موقعي الحالي</button>
+                    </div>
+                    <LocationPicker 
+                        initialCoords={data.coords}
+                        onLocationSelect={(loc) => setData(prev => ({...prev, coords: loc.coords, city: loc.city || prev.city, locationText: loc.locationText, locationUrl: loc.locationUrl }))} 
+                    />
+                    
                     <div className="flex items-center gap-2 p-3 bg-red-50 rounded-xl dark:bg-red-900/20">
                         <input type="checkbox" checked={data.isAuction} onChange={e => setData({...data, isAuction: e.target.checked})} />
                         <label className="text-red-800 font-bold dark:text-red-300">نظام المزاد</label>
                     </div>
                     {data.isAuction && <input type="datetime-local" className="w-full p-3 border rounded-xl dark:bg-gray-700" value={data.auctionEnd} onChange={e => setData({...data, auctionEnd: e.target.value})} />}
+                    
                     <textarea className="w-full p-3 border rounded-xl h-24 dark:bg-gray-700 dark:border-gray-600" placeholder="التفاصيل..." value={data.description} onChange={e => setData({...data, description: e.target.value})} />
                     <input type="tel" className="w-full p-3 border rounded-xl dark:bg-gray-700 dark:border-gray-600" placeholder="رقم الهاتف" value={data.phone} onChange={e => setData({...data, phone: e.target.value})} />
-                    <button disabled={submitting} onClick={handleSubmit} className="w-full bg-yellow-400 text-blue-900 font-bold py-3 rounded-xl hover:bg-yellow-500 disabled:opacity-50">{submitting ? 'جاري النشر...' : 'نشر'}</button>
+                    
+                    <button disabled={submitting} onClick={handleSubmit} className="w-full bg-yellow-400 text-blue-900 font-bold py-3 rounded-xl hover:bg-yellow-500 disabled:opacity-50">
+                        {submitting ? 'جاري الحفظ...' : (editItem ? 'تحديث الإعلان' : 'نشر الإعلان')}
+                    </button>
                 </div>
             </div>
         </div>
@@ -308,6 +458,9 @@ export default function HomePage() {
     // State للمودالات الجديدة
     const [selectedListingId, setSelectedListingId] = useState(null);
     const [chatListing, setChatListing] = useState(null);
+    
+    // State للتعديل
+    const [editItem, setEditItem] = useState(null);
 
     // مراقبة المستخدم
     useEffect(() => {
@@ -350,16 +503,37 @@ export default function HomePage() {
     }, [activeCat, search, listings]);
 
     // الإجراءات
-    const handleAddListing = async (data) => {
+    const handleAddOrUpdateListing = async (data, id = null) => {
         if (!user) return;
+        
         const fallbackCover = data.image || `https://source.unsplash.com/random/400x300?${data.category}`;
-        const newAd = {
-            ...data, userId: user.uid, userName: user.displayName || user.email, userEmail: user.email, userPhoto: user.photoURL || '',
-            createdAt: serverTimestamp(), updatedAt: serverTimestamp(), price: parseFloat(data.price), views: 0, likes: 0, isActive: true,
-            isAdmin: isAdminEmail(user.email), images: data.images.length ? data.images : [fallbackCover], image: data.images[0] || fallbackCover
+        const adData = {
+            ...data, 
+            userId: user.uid, 
+            userName: user.displayName || user.email, 
+            userEmail: user.email, 
+            userPhoto: user.photoURL || '',
+            updatedAt: serverTimestamp(), 
+            price: parseFloat(data.price), 
+            images: data.images.length ? data.images : [fallbackCover], 
+            image: data.images[0] || fallbackCover
         };
-        await addDoc(collection(db, 'listings'), newAd);
-        alert('تم النشر!');
+
+        if (id) {
+            // تحديث إعلان موجود
+            await updateDoc(doc(db, 'listings', id), adData);
+            alert('تم التعديل بنجاح!');
+        } else {
+            // إضافة جديد
+            adData.createdAt = serverTimestamp();
+            adData.views = 0;
+            adData.likes = 0;
+            adData.isActive = true;
+            adData.isAdmin = isAdminEmail(user.email);
+            
+            await addDoc(collection(db, 'listings'), adData);
+            alert('تم النشر!');
+        }
     };
 
     const toggleFavorite = async (id) => {
@@ -377,7 +551,12 @@ export default function HomePage() {
     };
 
     const handleDeleteListing = async (id) => {
-        if (confirm('حذف الإعلان؟')) await deleteDoc(doc(db, 'listings', id));
+        if (confirm('هل أنت متأكد من حذف الإعلان؟')) await deleteDoc(doc(db, 'listings', id));
+    };
+    
+    const handleEditListing = (item) => {
+        setEditItem(item);
+        setModals({ ...modals, add: true });
     };
 
     const handleToggleListingStatus = async (id, status) => {
@@ -391,6 +570,12 @@ export default function HomePage() {
     };
 
     const selectedListing = listings.find(l => l.id === selectedListingId);
+
+    // دالة لإغلاق مودال الإضافة وتصفير حالة التعديل
+    const closeAddModal = () => {
+        setModals({...modals, add: false});
+        setEditItem(null);
+    };
 
     return (
         <div className="min-h-screen pb-24 bg-gray-50 dark:bg-gray-900">
@@ -445,6 +630,8 @@ export default function HomePage() {
                                 onToggleFavorite={toggleFavorite}
                                 onViewDetails={(it) => setSelectedListingId(it.id)}
                                 onChat={handleChat}
+                                onDelete={handleDeleteListing}
+                                onEdit={handleEditListing}
                             />
                         ))}
                     </div>
@@ -452,7 +639,13 @@ export default function HomePage() {
             </main>
 
             {/* Modals & Components */}
-            <AddListingModal isOpen={modals.add} onClose={() => setModals({...modals, add: false})} user={user} onAdd={handleAddListing} />
+            <AddListingModal 
+                isOpen={modals.add} 
+                onClose={closeAddModal} 
+                user={user} 
+                onAdd={handleAddOrUpdateListing} 
+                editItem={editItem}
+            />
             <AuthModal isOpen={modals.auth} onClose={() => setModals({...modals, auth: false})} onLogin={() => alert('تم الدخول!')} />
             
             {/* تفاصيل الإعلان */}
@@ -480,6 +673,7 @@ export default function HomePage() {
                     user={user}
                     listings={listings}
                     onDeleteListing={handleDeleteListing}
+                    onEditListing={handleEditListing}
                     onToggleListingStatus={handleToggleListingStatus}
                 />
             )}
