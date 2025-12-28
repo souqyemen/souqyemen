@@ -1,4 +1,5 @@
 import "./globals.css";
+import Script from 'next/script'; // ✅ إضافة هذا
 
 export const metadata = {
   title: "سوق اليمن | أكبر سوق إلكتروني",
@@ -13,7 +14,7 @@ export default function RootLayout({ children }) {
           href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap"
           rel="stylesheet"
         />
-
+        
         {/* Leaflet CSS */}
         <link
           rel="stylesheet"
@@ -28,19 +29,18 @@ export default function RootLayout({ children }) {
           href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css"
         />
       </head>
-
       <body>
         {children}
-
-        {/* Leaflet Scripts */}
-        <script
+        
+        {/* Leaflet Scripts باستخدام next/script */}
+        <Script 
           src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-          defer
-        ></script>
-        <script
+          strategy="lazyOnload"
+        />
+        <Script
           src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"
-          defer
-        ></script>
+          strategy="lazyOnload"
+        />
       </body>
     </html>
   );
