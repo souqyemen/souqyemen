@@ -1,13 +1,18 @@
+// app/layout.jsx
+import "./globals.css";
+
 export const metadata = {
-  title: "سوق اليمن | بيع وشراء كل شيء",
+  title: "سوق اليمن | بيع وشراء كل شيء في اليمن",
   description:
-    "سوق اليمن - منصة إعلانات لبيع وشراء كل شيء في اليمن: سيارات، عقارات، جوالات، طاقة شمسية، وظائف، ملابس وأكثر. أضف إعلانك مجاناً الآن.",
+    "سوق اليمن - منصتك للإعلانات في كل محافظات اليمن، بيع وشراء السيارات والعقارات والطاقة الشمسية والجوالات بسهولة.",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="ar" dir="rtl">
-      <body className="bg-slate-100 text-slate-900">{children}</body>
+      <body className="bg-slate-100 text-slate-900 antialiased">
+        {children}
+      </body>
     </html>
   );
 }
