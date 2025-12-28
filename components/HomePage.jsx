@@ -1,364 +1,299 @@
-/* HomePage.css */
+"use client";
 
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
-}
+import React, { useState } from "react";
+import Image from "next/image";
 
-/* Header Styles */
-header {
-  background: linear-gradient(135deg, #0d3b66 0%, #1a5f7a 100%);
-  color: white;
-  padding: 25px 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-radius: 0 0 20px 20px;
-  margin-bottom: 40px;
-}
+// أقسام الموقع الأساسية
+const CATEGORIES = [
+  { id: "all", label: "الكل" },
+  { id: "cars", label: "سيارات" },
+  { id: "real_estate", label: "عقارات" },
+  { id: "mobiles", label: "جوالات" },
+  { id: "solar", label: "طاقة شمسية" },
+  { id: "jobs", label: "وظائف" },
+  { id: "internet", label: "نت وشبكات" },
+  { id: "electronics", label: "الكترونيات" },
+];
 
-.logo-section {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-}
+// أمثلة إعلانات (تجريبية – مثل ملف HTML القديم)
+const SAMPLE_ADS = [
+  {
+    id: 1,
+    category: "solar",
+    title: "منظومة طاقة شمسية كاملة 5 كيلو",
+    price: "1,050 دولار",
+    city: "تعز",
+    area: "الحوبان",
+    ago: "منذ 7 أيام",
+    image:
+      "https://images.pexels.com/photos/9875441/pexels-photo-9875441.jpeg?auto=compress&cs=tinysrgb&w=800",
+  },
+  {
+    id: 2,
+    category: "real_estate",
+    title: "شقة للإيجار في صنعاء - 4 غرف وصالة",
+    price: "250,000 ريال يمني",
+    city: "صنعاء",
+    area: "حدة",
+    ago: "منذ 5 أيام",
+    image:
+      "https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg?auto=compress&cs=tinysrgb&w=800",
+  },
+  {
+    id: 3,
+    category: "ac",
+    title: "مكيفات جري سبلت 18 وحدة - حالة ممتازة",
+    price: "220,000 ريال يمني",
+    city: "صنعاء",
+    area: "شارع تعز",
+    ago: "منذ 3 أيام",
+    image:
+      "https://images.pexels.com/photos/3967850/pexels-photo-3967850.jpeg?auto=compress&cs=tinysrgb&w=800",
+  },
+];
 
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
+export default function HomePage() {
+  const [activeCategory, setActiveCategory] = useState("all");
+  const [search, setSearch] = useState("");
 
-.logo i {
-  font-size: 2.5rem;
-  color: #ffd166;
-}
+  const filteredAds = SAMPLE_ADS.filter((ad) => {
+    const matchCat = activeCategory === "all" || ad.category === activeCategory;
+    const matchSearch =
+      !search ||
+      ad.title.toLowerCase().includes(search.toLowerCase()) ||
+      ad.city.toLowerCase().includes(search.toLowerCase());
+    return matchCat && matchSearch;
+  });
 
-.logo h1 {
-  font-size: 1.8rem;
-  font-weight: 700;
-}
+  return (
+    <main className="min-h-screen bg-[#f5f7fb] text-gray-900" dir="rtl">
+      {/* الهيدر + الهيرو الأزرق (مثل ملف HTML) */}
+      <header className="bg-[#013a86] text-white pb-10 shadow-lg">
+        <div className="container-main">
+          {/* الشريط العلوي */}
+          <div className="flex items-center justify-between py-4">
+            {/* الشعار */}
+            <div className="flex items-center gap-3">
+              <div className="relative w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-md overflow-hidden">
+                {/* 👇 تأكد إنك حفظت الصورة في مجلد public باسم logo-souqyemen.png */}
+                <Image
+                  src="/logo-souqyemen.png"
+                  alt="شعار سوق اليمن"
+                  width={40}
+                  height={40}
+                  className="object-contain"
+                />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold">سوق اليمن</h1>
+                <p className="text-xs text-blue-100">
+                  بيع وشراء كل شيء في اليمن
+                </p>
+              </div>
+            </div>
 
-.contact-buttons {
-  display: flex;
-  gap: 15px;
-}
+            {/* زر إضافة إعلان + واتساب / دخول (تصميم بسيط) */}
+            <div className="flex items-center gap-3">
+              <button className="hidden sm:flex items-center gap-2 bg-white text-[#013a86] px-4 py-2 rounded-full text-sm font-bold shadow hover:bg-blue-50 transition">
+                <span className="text-lg">+</span>
+                <span>أضف إعلانك</span>
+              </button>
 
-.contact-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background-color: rgba(255, 255, 255, 0.15);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 10px 18px;
-  border-radius: 50px;
-  text-decoration: none;
-  font-weight: 500;
-  transition: all 0.3s ease;
-}
+              <a
+                href="#whatsapp"
+                className="flex items-center gap-2 bg-[#25D366] px-4 py-2 rounded-full text-sm font-bold shadow hover:bg-[#1ebe57] transition"
+              >
+                <span>تواصل واتساب</span>
+              </a>
+            </div>
+          </div>
 
-.contact-btn:hover {
-  background-color: rgba(255, 255, 255, 0.25);
-  transform: translateY(-2px);
-}
+          {/* محتوى الهيرو */}
+          <div className="grid md:grid-cols-[2fr,1.6fr] gap-8 items-center mt-4">
+            {/* النصوص */}
+            <div>
+              <p className="text-sm text-blue-100 mb-2">مرحبا بك في</p>
+              <h2 className="text-3xl md:text-4xl font-extrabold mb-4 leading-relaxed">
+                منصتك للإعلانات في كل محافظات اليمن
+              </h2>
+              <p className="text-sm md:text-base text-blue-100 mb-6 max-w-xl leading-relaxed">
+                اعرض سيارتك أو عقارك أو منتجاتك بكل سهولة، وخلي العملاء
+                يتواصلوا معك مباشرة عبر الواتساب أو الاتصال.
+              </p>
 
-.contact-btn.whatsapp {
-  background-color: #25D366;
-  border-color: #25D366;
-}
+              {/* مربع البحث */}
+              <div className="bg-white rounded-full flex items-center gap-2 p-1.5 shadow-lg mb-4">
+                <button className="bg-[#013a86] text-white py-2 px-5 rounded-full text-sm font-bold">
+                  بحث
+                </button>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="ابحث عن سيارة، بيت، جوال، طاقة شمسية..."
+                  className="flex-1 bg-transparent border-none outline-none px-3 text-sm text-gray-800 placeholder:text-gray-400"
+                />
+              </div>
 
-.contact-btn.whatsapp:hover {
-  background-color: #1da851;
-}
+              {/* نقاط المميزات الثلاثية كما في HTML القديم */}
+              <div className="flex flex-wrap gap-3 text-xs md:text-sm text-blue-100">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-green-400 text-base">✔</span>
+                  <span>بدون عمولة على الإعلانات</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-green-400 text-base">✔</span>
+                  <span>تواصل مباشر بين البائع والمشتري</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-green-400 text-base">✔</span>
+                  <span>أقسام خاصة للعقارات والطاقة الشمسية</span>
+                </div>
+              </div>
+            </div>
 
-.tagline {
-  text-align: center;
-  font-size: 1.2rem;
-  margin-top: 10px;
-  opacity: 0.9;
-}
+            {/* صورة جانبية (بدل صورة التكييف في HTML) */}
+            <div className="relative hidden md:block">
+              <div className="relative bg-white rounded-3xl p-4 shadow-2xl overflow-hidden">
+                <Image
+                  src="https://images.pexels.com/photos/3794355/pexels-photo-3794355.jpeg?auto=compress&cs=tinysrgb&w=1200"
+                  alt="سوق اليمن - مثال إعلان"
+                  width={800}
+                  height={600}
+                  className="rounded-2xl object-cover h-64 w-full"
+                />
+                <div className="absolute top-3 left-3 bg-white/90 rounded-full px-3 py-1 text-xs font-bold text-[#013a86] flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                  <span>إعلانات حقيقية من السوق اليمني</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
 
-/* Search Section */
-.search-section {
-  background-color: white;
-  padding: 30px;
-  border-radius: 12px;
-  margin-top: -20px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-  position: relative;
-  z-index: 10;
-  margin-bottom: 40px;
-}
+      {/* أقسام الموقع (الأزرار البيضاء/الصفراء) */}
+      <section className="border-b bg-white/80 backdrop-blur sticky top-0 z-30">
+        <div className="container-main py-3 flex flex-wrap gap-2 justify-center">
+          {CATEGORIES.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setActiveCategory(c.id)}
+              className={`chip ${
+                activeCategory === c.id ? "chip--primary" : "chip--ghost"
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
-.search-container {
-  display: flex;
-  max-width: 800px;
-  margin: 0 auto;
-}
+      {/* مثال على الإعلانات (نفس فكرة الكروت في ملف HTML) */}
+      <section className="container-main my-8" id="sample-ads">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="section-title">مثال على إعلان في سوق اليمن</h3>
+          <span className="text-xs text-gray-500 hidden sm:block">
+            هذه فقط أمثلة تجريبية، قريبًا يتم ربط الموقع بقاعدة بيانات كاملة
+            للإعلانات.
+          </span>
+        </div>
 
-.search-input {
-  flex-grow: 1;
-  padding: 16px 20px;
-  border: 2px solid #e9ecef;
-  border-radius: 50px 0 0 50px;
-  font-size: 1rem;
-  outline: none;
-  transition: border-color 0.3s;
-}
+        <div className="ads-grid">
+          {filteredAds.map((ad) => (
+            <article key={ad.id} className="ad-card">
+              <div className="ad-card__image-wrapper">
+                <Image
+                  src={ad.image}
+                  alt={ad.title}
+                  width={600}
+                  height={400}
+                  className="ad-card__image"
+                />
+              </div>
 
-.search-input:focus {
-  border-color: #1a5f7a;
-}
+              <div className="ad-card__body">
+                <h4 className="ad-card__title">{ad.title}</h4>
+                <div className="ad-card__price">{ad.price}</div>
 
-.search-btn {
-  background: linear-gradient(to right, #1a5f7a, #0d3b66);
-  color: white;
-  border: none;
-  padding: 0 30px;
-  border-radius: 0 50px 50px 0;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
+                <div className="ad-card__meta">
+                  <span>{ad.city}</span>
+                  <span className="text-gray-400">•</span>
+                  <span>{ad.area}</span>
+                </div>
 
-.search-btn:hover {
-  background: linear-gradient(to right, #0d3b66, #1a5f7a);
-}
+                <div className="ad-card__footer">
+                  <span className="ad-card__ago">{ad.ago}</span>
+                  <button className="ad-card__button">
+                    مشاهدة تفاصيل الإعلان
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
 
-/* Categories Section */
-.categories-section {
-  padding: 40px 0;
-}
+      {/* مميزات سوق اليمن */}
+      <section className="bg-white py-10 border-t border-b border-gray-100">
+        <div className="container-main">
+          <h3 className="section-title mb-6">ليش تختار سوق اليمن؟</h3>
+          <div className="grid md:grid-cols-3 gap-5 text-sm">
+            <div className="feature-box">
+              <h4>منصة يمنية 100%</h4>
+              <p>
+                موقع مخصص للسوق اليمني، عملة وأسعار وأقسام تناسب احتياجك في
+                اليمن.
+              </p>
+            </div>
+            <div className="feature-box">
+              <h4>سهولة التواصل</h4>
+              <p>
+                تواصل مباشر مع صاحب الإعلان عبر واتساب أو اتصال بدون أي وسيط.
+              </p>
+            </div>
+            <div className="feature-box">
+              <h4>تركيز على العقار والطاقة</h4>
+              <p>
+                أقسام قوية للعقارات، الأراضي، الشقق، وأنظمة الطاقة الشمسية
+                والبطاريات.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-.section-title {
-  text-align: center;
-  font-size: 1.8rem;
-  margin-bottom: 30px;
-  color: #0d3b66;
-  position: relative;
-}
+      {/* خطوات إضافة إعلان */}
+      <section className="py-10">
+        <div className="container-main">
+          <h3 className="section-title mb-6">طريقة إضافة إعلان جديد</h3>
+          <div className="grid md:grid-cols-3 gap-5 text-sm">
+            <div className="step-box">
+              <span className="step-box__badge">1</span>
+              <h4>سجل دخولك أو أنشئ حساب</h4>
+              <p>استخدم بريدك الإلكتروني أو رقم جوالك لإنشاء حساب بسيط.</p>
+            </div>
+            <div className="step-box">
+              <span className="step-box__badge">2</span>
+              <h4>أضف تفاصيل الإعلان</h4>
+              <p>اختر القسم المناسب، أضف العنوان، السعر، والصور الواضحة.</p>
+            </div>
+            <div className="step-box">
+              <span className="step-box__badge">3</span>
+              <h4>انشر وتابع اتصالات العملاء</h4>
+              <p>الإعلان يظهر في الموقع، والعملاء يتواصلوا معك مباشرة.</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-.section-title::after {
-  content: '';
-  position: absolute;
-  width: 80px;
-  height: 4px;
-  background: linear-gradient(to right, #0d3b66, #1a5f7a);
-  bottom: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-radius: 2px;
-}
-
-.categories-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 25px;
-  margin-top: 40px;
-}
-
-.category-card {
-  background-color: white;
-  border-radius: 12px;
-  padding: 25px 20px;
-  text-align: center;
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
-  cursor: pointer;
-  border: 1px solid #e9ecef;
-}
-
-.category-card:hover {
-  transform: translateY(-10px);
-  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.1);
-  border-color: #1a5f7a;
-}
-
-.category-icon {
-  font-size: 2.5rem;
-  color: #1a5f7a;
-  margin-bottom: 15px;
-}
-
-.category-card h3 {
-  font-size: 1.3rem;
-  color: #333;
-}
-
-/* Featured Ad Section */
-.featured-ad-section {
-  padding: 40px 0;
-}
-
-.ad-card {
-  background-color: white;
-  border-radius: 15px;
-  overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-  display: flex;
-  flex-direction: column;
-  max-width: 900px;
-  margin: 0 auto;
-  border: 1px solid #e9ecef;
-}
-
-.ad-image {
-  height: 250px;
-  overflow: hidden;
-}
-
-.ad-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.ad-details {
-  padding: 25px;
-}
-
-.ad-details h3 {
-  font-size: 1.6rem;
-  margin-bottom: 15px;
-  color: #0d3b66;
-}
-
-.ad-description {
-  color: #666;
-  margin-bottom: 20px;
-  font-size: 1.05rem;
-}
-
-.ad-info {
-  display: flex;
-  gap: 25px;
-  margin-bottom: 25px;
-  color: #555;
-  flex-wrap: wrap;
-}
-
-.ad-info span {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.ad-contact {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 15px;
-}
-
-.price {
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: #0d3b66;
-}
-
-.contact-seller {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: linear-gradient(to right, #25D366, #1da851);
-  color: white;
-  text-decoration: none;
-  padding: 12px 25px;
-  border-radius: 50px;
-  font-weight: 600;
-  transition: all 0.3s ease;
-}
-
-.contact-seller:hover {
-  background: linear-gradient(to right, #1da851, #25D366);
-  transform: translateY(-3px);
-  box-shadow: 0 6px 15px rgba(37, 211, 102, 0.3);
-}
-
-/* Info Section */
-.info-section {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 30px;
-  padding: 50px 0;
-}
-
-.info-card {
-  background: white;
-  padding: 30px;
-  border-radius: 12px;
-  text-align: center;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.05);
-  border-top: 4px solid #1a5f7a;
-}
-
-.info-card i {
-  font-size: 3rem;
-  color: #1a5f7a;
-  margin-bottom: 20px;
-}
-
-.info-card h3 {
-  font-size: 1.4rem;
-  margin-bottom: 15px;
-  color: #0d3b66;
-}
-
-/* Footer */
-footer {
-  text-align: center;
-  padding: 30px 0;
-  margin-top: 50px;
-  color: #666;
-  border-top: 1px solid #e9ecef;
-  font-size: 0.95rem;
-}
-
-footer p:first-child {
-  margin-bottom: 10px;
-  font-weight: 600;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-  .logo-section {
-    flex-direction: column;
-    gap: 20px;
-  }
-  
-  .search-container {
-    flex-direction: column;
-  }
-  
-  .search-input {
-    border-radius: 50px;
-    margin-bottom: 15px;
-  }
-  
-  .search-btn {
-    border-radius: 50px;
-    padding: 15px;
-  }
-  
-  .categories-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .ad-contact {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .contact-seller {
-    width: 100%;
-    justify-content: center;
-  }
-  
-  .info-section {
-    grid-template-columns: 1fr;
-  }
+      {/* فووتر بسيط */}
+      <footer className="bg-[#012a5f] text-blue-100 py-6 mt-10">
+        <div className="container-main flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
+          <p>© {new Date().getFullYear()} سوق اليمن - بيع وشراء كل شيء في اليمن</p>
+          <p>هذه فقط نسخة أولية، وستتم إضافة تسجيل الدخول ولوحة التحكم لاحقًا.</p>
+        </div>
+      </footer>
+    </main>
+  );
 }
